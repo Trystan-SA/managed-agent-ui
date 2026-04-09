@@ -1,0 +1,67 @@
+@use '../mixins' as *;
+
+// ——— Status Badges ———
+.badge {
+  @include badge;
+
+  // Status variants
+  &--idle {
+    background: var(--accent-success-muted);
+    color: var(--accent-success);
+  }
+
+  &--running {
+    background: var(--accent-primary-muted);
+    color: var(--accent-primary);
+  }
+
+  &--rescheduling {
+    background: var(--accent-warning-muted);
+    color: var(--accent-warning);
+  }
+
+  &--terminated {
+    background: var(--accent-danger-muted);
+    color: var(--accent-danger);
+  }
+
+  &--info {
+    background: var(--accent-info-muted);
+    color: var(--accent-info);
+  }
+
+  // Sizes
+  &--sm {
+    padding: 0 var(--space-3);
+    font-size: 0.6875rem;
+  }
+
+  &--md {
+    padding: var(--space-2) var(--space-5);
+    font-size: var(--text-sm);
+  }
+
+  // Dot indicator before text
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: currentColor;
+    flex-shrink: 0;
+  }
+
+  // Animated pulse for running
+  &--running &__dot {
+    animation: badge-pulse 2s ease-in-out infinite;
+  }
+}
+
+@keyframes badge-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}

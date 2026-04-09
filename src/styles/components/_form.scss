@@ -1,0 +1,108 @@
+@use '../mixins' as *;
+
+// ——— Form Groups ———
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  & + & {
+    margin-top: var(--space-6);
+  }
+}
+
+.form-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+
+  .form-label__required {
+    color: var(--accent-danger);
+    margin-left: var(--space-1);
+  }
+}
+
+.form-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+// ——— Inputs ———
+.form-input {
+  @include input;
+}
+
+.form-textarea {
+  @include input;
+  min-height: 100px;
+  resize: vertical;
+}
+
+.form-select {
+  @include input;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b6b80' d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-5) center;
+  padding-right: var(--space-9);
+  cursor: pointer;
+}
+
+// ——— Error state ———
+.form-group--error {
+  .form-input,
+  .form-textarea,
+  .form-select {
+    border-color: var(--accent-danger);
+
+    &:focus {
+      box-shadow: 0 0 0 3px var(--accent-danger-muted);
+    }
+  }
+}
+
+.form-error {
+  font-size: var(--text-xs);
+  color: var(--accent-danger);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+// ——— Form Actions ———
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-subtle);
+}
+
+// ——— Buttons ———
+.btn {
+  @include button('primary');
+}
+
+.btn--secondary {
+  @include button('secondary');
+}
+
+.btn--danger {
+  @include button('danger');
+}
+
+.btn--ghost {
+  @include button('ghost');
+}
+
+.btn--sm {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-xs);
+}
+
+.btn--lg {
+  padding: var(--space-5) var(--space-7);
+  font-size: var(--text-base);
+}

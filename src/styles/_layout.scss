@@ -1,0 +1,140 @@
+@use 'mixins' as *;
+
+// ——— App Shell ———
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+// ——— Top Navigation ———
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding: 0 var(--space-8);
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-default);
+  backdrop-filter: blur(12px);
+  gap: var(--space-6);
+
+  &__logo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+    flex-shrink: 0;
+  }
+
+  &__links {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    margin-left: var(--space-8);
+  }
+
+  &__link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+    transition: color var(--transition-fast),
+      background var(--transition-fast);
+
+    &:hover {
+      color: var(--text-primary);
+      background: var(--surface-2);
+    }
+
+    &--active {
+      color: var(--text-primary);
+      background: var(--surface-2);
+    }
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+}
+
+// ——— Page container ———
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6);
+
+  @include responsive(md) {
+    padding: var(--space-9) var(--space-8);
+  }
+
+  @include responsive(lg) {
+    padding: var(--space-10) var(--space-9);
+  }
+}
+
+// ——— Page Header ———
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-bottom: var(--space-9);
+  flex-wrap: wrap;
+
+  &__title {
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-bold);
+    color: var(--text-primary);
+    line-height: var(--leading-tight);
+  }
+
+  &__subtitle {
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+}
+
+// ——— Grid ———
+.grid {
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: 1fr;
+
+  @include responsive(md) {
+    &--2 { grid-template-columns: repeat(2, 1fr); }
+    &--3 { grid-template-columns: repeat(2, 1fr); }
+    &--4 { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @include responsive(lg) {
+    &--3 { grid-template-columns: repeat(3, 1fr); }
+    &--4 { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @include responsive(xl) {
+    &--4 { grid-template-columns: repeat(4, 1fr); }
+  }
+}
