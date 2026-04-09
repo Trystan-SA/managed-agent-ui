@@ -1,8 +1,8 @@
-# Claude Managed Agents — Project Guide
+# ManagedAgentUI — Project Guide
 
 ## What This Is
 
-A self-hosted SvelteKit dashboard for orchestrating Anthropic Claude Managed Agents. Single-user by design — one instance per user, one API key per instance.
+A self-hosted SvelteKit dashboard for orchestrating Anthropic Managed Agents. Multi-user — the first registered account becomes admin, each user manages their own API keys.
 
 ## Architecture
 

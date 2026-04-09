@@ -1,5 +1,5 @@
 {
-	"name": "claude-managed-agents",
+	"name": "managed-agent-ui",
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",

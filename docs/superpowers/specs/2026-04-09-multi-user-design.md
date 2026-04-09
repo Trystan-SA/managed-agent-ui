@@ -2,7 +2,7 @@
 
 ## Overview
 
-Transform the single-user Claude Managed Agents dashboard into a multi-user system. The first registered account becomes the admin, who can invite collaborators. Each user manages their own API keys (private by default) and can optionally share them with specific users. Anthropic resources (agents, sessions, environments) are scoped to API keys and displayed in a unified view across all keys a user has access to.
+Transform the single-user ManagedAgentUI dashboard into a multi-user system. The first registered account becomes the admin, who can invite collaborators. Each user manages their own API keys (private by default) and can optionally share them with specific users. Anthropic resources (agents, sessions, environments) are scoped to API keys and displayed in a unified view across all keys a user has access to.
 
 ## Decisions
 

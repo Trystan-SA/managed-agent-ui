@@ -1,8 +1,8 @@
-# Claude Managed Agents Dashboard — Design Spec
+# ManagedAgentUI Dashboard — Design Spec
 
 ## Overview
 
-A full-featured SvelteKit web application for managing Claude Managed Agents. The app provides a dashboard, CRUD management for agents/environments/sessions, a real-time chat interface with SSE streaming, an event timeline viewer, and agent version history. Multi-user, each user brings their own Anthropic API key.
+A full-featured SvelteKit web application for managing Anthropic Managed Agents. The app provides a dashboard, CRUD management for agents/environments/sessions, a real-time chat interface with SSE streaming, an event timeline viewer, and agent version history. Multi-user, each user brings their own Anthropic API key.
 
 ## Stack
 

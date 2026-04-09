@@ -1,6 +1,6 @@
 # Specifications Index
 
-Domain specifications for the Claude Managed Agents project. Each file covers one bounded context, chaptered with `X.X.X` numbering.
+Domain specifications for the ManagedAgentUI project. Each file covers one bounded context, chaptered with `X.X.X` numbering.
 
 ## Chapters
 

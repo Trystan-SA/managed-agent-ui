@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a full SvelteKit management dashboard for Claude Managed Agents with CRUD for agents/environments/sessions, real-time chat with SSE streaming, and multi-user auth.
+**Goal:** Build a full SvelteKit management dashboard for Anthropic Managed Agents with CRUD for agents/environments/sessions, real-time chat with SSE streaming, and multi-user auth.
 
 **Architecture:** Monolith SvelteKit app (Node adapter) with server-side API proxy to Anthropic. Postgres for user data, encrypted API keys, bookmarks, preferences. Docker Compose orchestrates both services.
 
