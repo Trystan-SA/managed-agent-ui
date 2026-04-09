@@ -1,22 +1,49 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
+  let setupPassword = $state('');
+  let setupVerified = $state(false);
   let email = $state('');
   let password = $state('');
-  let apiKey = $state('');
-  let showApiKey = $state(false);
   let error = $state('');
   let loading = $state(false);
   let mounted = $state(false);
-  let activeField = $state<'email' | 'password' | 'apikey' | null>(null);
+  let activeField = $state<'setup' | 'email' | 'password' | null>(null);
 
   onMount(() => {
     requestAnimationFrame(() => (mounted = true));
   });
 
   let currentStep = $derived(
-    !email ? 1 : !password ? 2 : 3
+    !setupVerified ? 1 : !email ? 2 : 3
   );
+
+  async function handleVerifySetup(e: SubmitEvent) {
+    e.preventDefault();
+    error = '';
+    loading = true;
+
+    try {
+      const res = await fetch('/api/auth/verify-setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setupPassword })
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        error = data.error || `Verification failed (${res.status})`;
+        return;
+      }
+
+      setupVerified = true;
+      error = '';
+    } catch (err) {
+      error = 'Network error. Please try again.';
+    } finally {
+      loading = false;
+    }
+  }
 
   async function handleSubmit(e: SubmitEvent) {
     e.preventDefault();
@@ -27,7 +54,7 @@
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, apiKey })
+        body: JSON.stringify({ email, password, setupPassword })
       });
 
       if (!res.ok) {
@@ -46,10 +73,7 @@
 </script>
 
 <svelte:head>
-  <title>Create Account — Managed Agents</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <title>Initial Setup — Managed Agents</title>
 </svelte:head>
 
 <div class="reg" class:reg--visible={mounted}>
@@ -71,14 +95,32 @@
       </div>
 
       <div class="reg__steps">
-        <div class="reg__step" class:reg__step--active={currentStep >= 1} class:reg__step--current={activeField === 'email'}>
+        <div class="reg__step" class:reg__step--active={currentStep >= 1} class:reg__step--current={activeField === 'setup'}>
+          <div class="reg__step-num">
+            {#if setupVerified}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            {:else}
+              1
+            {/if}
+          </div>
+          <div class="reg__step-info">
+            <span class="reg__step-title">Authorization</span>
+            <span class="reg__step-desc">Setup password</span>
+          </div>
+        </div>
+
+        <div class="reg__step-line" class:reg__step-line--done={setupVerified}></div>
+
+        <div class="reg__step" class:reg__step--active={currentStep >= 2} class:reg__step--current={activeField === 'email'}>
           <div class="reg__step-num">
             {#if email}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             {:else}
-              1
+              2
             {/if}
           </div>
           <div class="reg__step-info">
@@ -89,27 +131,9 @@
 
         <div class="reg__step-line" class:reg__step-line--done={!!email}></div>
 
-        <div class="reg__step" class:reg__step--active={currentStep >= 2} class:reg__step--current={activeField === 'password'}>
+        <div class="reg__step" class:reg__step--active={currentStep >= 3} class:reg__step--current={activeField === 'password'}>
           <div class="reg__step-num">
             {#if password}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            {:else}
-              2
-            {/if}
-          </div>
-          <div class="reg__step-info">
-            <span class="reg__step-title">Security</span>
-            <span class="reg__step-desc">Choose a password</span>
-          </div>
-        </div>
-
-        <div class="reg__step-line" class:reg__step-line--done={!!password}></div>
-
-        <div class="reg__step" class:reg__step--active={currentStep >= 3} class:reg__step--current={activeField === 'apikey'}>
-          <div class="reg__step-num">
-            {#if apiKey}
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
@@ -118,22 +142,11 @@
             {/if}
           </div>
           <div class="reg__step-info">
-            <span class="reg__step-title">Connection</span>
-            <span class="reg__step-desc">Anthropic API key</span>
+            <span class="reg__step-title">Security</span>
+            <span class="reg__step-desc">Choose a password</span>
           </div>
         </div>
-      </div>
 
-      <div class="reg__info-card">
-        <div class="reg__info-icon" aria-hidden="true">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-        </div>
-        <p class="reg__info-text">
-          Your API key is encrypted with AES-256-GCM and never leaves the server. All requests are proxied securely.
-        </p>
       </div>
     </div>
   </div>
@@ -142,144 +155,134 @@
   <div class="reg__form-panel">
     <div class="reg__form-wrapper">
       <div class="reg__form-header">
-        <span class="reg__form-badge">New Account</span>
-        <h1 class="reg__form-title">Get started</h1>
+        <span class="reg__form-badge">Initial Setup</span>
+        <h1 class="reg__form-title">Create admin account</h1>
         <p class="reg__form-desc">Set up your control panel in seconds</p>
       </div>
 
-      <form class="reg__form" onsubmit={handleSubmit}>
-        <!-- Email -->
-        <div class="reg__field">
-          <label class="reg__label" for="reg-email">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="2" y="4" width="20" height="16" rx="2" />
-              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-            </svg>
-            Email
-          </label>
-          <input
-            id="reg-email"
-            class="reg__input"
-            type="email"
-            placeholder="operator@company.com"
-            autocomplete="email"
-            required
-            bind:value={email}
-            onfocus={() => (activeField = 'email')}
-            onblur={() => (activeField = null)}
-          />
-        </div>
-
-        <!-- Password -->
-        <div class="reg__field">
-          <label class="reg__label" for="reg-password">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-            Password
-          </label>
-          <input
-            id="reg-password"
-            class="reg__input"
-            type="password"
-            placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
-            autocomplete="new-password"
-            required
-            bind:value={password}
-            onfocus={() => (activeField = 'password')}
-            onblur={() => (activeField = null)}
-          />
-        </div>
-
-        <!-- API Key -->
-        <div class="reg__field">
-          <label class="reg__label" for="reg-apikey">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4" />
-            </svg>
-            API Key
-          </label>
-          <div class="reg__input-group">
+      {#if !setupVerified}
+        <!-- Step 1: Setup password gate -->
+        <form class="reg__form" onsubmit={handleVerifySetup}>
+          <div class="reg__field">
+            <label class="reg__label" for="reg-setup">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              Setup Password
+            </label>
             <input
-              id="reg-apikey"
-              class="reg__input reg__input--key"
-              type={showApiKey ? 'text' : 'password'}
-              placeholder="sk-ant-api03-..."
+              id="reg-setup"
+              class="reg__input"
+              type="password"
+              placeholder="From your SETUP_PASSWORD env var"
               autocomplete="off"
-              spellcheck="false"
               required
-              bind:value={apiKey}
-              onfocus={() => (activeField = 'apikey')}
+              bind:value={setupPassword}
+              onfocus={() => (activeField = 'setup')}
               onblur={() => (activeField = null)}
             />
-            <button
-              type="button"
-              class="reg__toggle"
-              onclick={() => (showApiKey = !showApiKey)}
-              aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-            >
-              {#if showApiKey}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
-                  <line x1="1" y1="1" x2="23" y2="23" />
-                </svg>
-              {:else}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-              {/if}
-            </button>
+            <span class="reg__hint">
+              The password set in the SETUP_PASSWORD environment variable
+            </span>
           </div>
-          <span class="reg__hint">
-            Get yours at
-            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">
-              console.anthropic.com
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="7" y1="17" x2="17" y2="7" />
-                <polyline points="7 7 17 7 17 17" />
+
+          {#if error}
+            <div class="reg__error">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
-            </a>
-          </span>
-        </div>
-
-        {#if error}
-          <div class="reg__error">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            {error}
-          </div>
-        {/if}
-
-        <button class="reg__submit" type="submit" disabled={loading}>
-          {#if loading}
-            <span class="reg__spinner"></span>
-            Creating account...
-          {:else}
-            Create Account
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="5" y1="12" x2="19" y2="12" />
-              <polyline points="12 5 19 12 12 19" />
-            </svg>
+              {error}
+            </div>
           {/if}
-        </button>
-      </form>
+
+          <button class="reg__submit" type="submit" disabled={loading}>
+            {#if loading}
+              <span class="reg__spinner"></span>
+              Verifying...
+            {:else}
+              Verify
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            {/if}
+          </button>
+        </form>
+      {:else}
+        <!-- Step 2: Account creation (only after setup password verified) -->
+        <form class="reg__form" onsubmit={handleSubmit}>
+          <div class="reg__field">
+            <label class="reg__label" for="reg-email">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              Email
+            </label>
+            <input
+              id="reg-email"
+              class="reg__input"
+              type="email"
+              placeholder="operator@company.com"
+              autocomplete="email"
+              required
+              bind:value={email}
+              onfocus={() => (activeField = 'email')}
+              onblur={() => (activeField = null)}
+            />
+          </div>
+
+          <div class="reg__field">
+            <label class="reg__label" for="reg-password">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Password
+            </label>
+            <input
+              id="reg-password"
+              class="reg__input"
+              type="password"
+              placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
+              autocomplete="new-password"
+              required
+              bind:value={password}
+              onfocus={() => (activeField = 'password')}
+              onblur={() => (activeField = null)}
+            />
+          </div>
+
+          {#if error}
+            <div class="reg__error">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              {error}
+            </div>
+          {/if}
+
+          <button class="reg__submit" type="submit" disabled={loading}>
+            {#if loading}
+              <span class="reg__spinner"></span>
+              Creating account...
+            {:else}
+              Create Account
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12" />
+                <polyline points="12 5 19 12 12 19" />
+              </svg>
+            {/if}
+          </button>
+        </form>
+      {/if}
 
       <div class="reg__footer">
-        <span>Already have an account?</span>
-        <a href="/login" class="reg__footer-link">
-          Sign in
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="7" y1="17" x2="17" y2="7" />
-            <polyline points="7 7 17 7 17 17" />
-          </svg>
-        </a>
+        <span>One-time setup — this page won't be accessible after account creation</span>
       </div>
     </div>
   </div>
@@ -289,31 +292,15 @@
   /* ============================================
      REGISTER — Onboarding Setup Flow
      Split panel with step tracker + form
+     Uses design system tokens from _tokens.scss
      ============================================ */
 
   .reg {
-    --r-bg: #06060b;
-    --r-surface: #0d0d15;
-    --r-surface-2: #13131f;
-    --r-border: #1a1a2e;
-    --r-border-hover: #2a2a44;
-    --r-text: #e8e8f0;
-    --r-text-dim: #8888a4;
-    --r-text-muted: #5a5a74;
-    --r-accent: #6366f1;
-    --r-accent-glow: rgba(99, 102, 241, 0.25);
-    --r-accent-soft: rgba(99, 102, 241, 0.08);
-    --r-success: #22c55e;
-    --r-success-soft: rgba(34, 197, 94, 0.12);
-    --r-danger: #ef4444;
-    --r-font: 'Geist', -apple-system, sans-serif;
-    --r-mono: 'Geist Mono', 'SF Mono', monospace;
-
     display: flex;
     min-height: 100vh;
-    background: var(--r-bg);
-    font-family: var(--r-font);
-    color: var(--r-text);
+    background: var(--surface-0);
+    font-family: var(--font-sans);
+    color: var(--text-primary);
     overflow: hidden;
     opacity: 0;
     transition: opacity 0.6s ease;
@@ -329,8 +316,8 @@
     position: fixed;
     inset: 0;
     background-image:
-      linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+      linear-gradient(rgba(99, 102, 241, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99, 102, 241, 0.05) 1px, transparent 1px);
     background-size: 64px 64px;
     animation: gridDrift 20s linear infinite;
   }
@@ -338,7 +325,7 @@
   .reg__grid-fade {
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse 80% 60% at 30% 50%, transparent 0%, var(--r-bg) 70%);
+    background: radial-gradient(ellipse 80% 60% at 30% 50%, transparent 0%, var(--surface-0) 70%);
   }
 
   @keyframes gridDrift {
@@ -367,9 +354,9 @@
       background: linear-gradient(
         to bottom,
         transparent,
-        var(--r-border) 30%,
-        var(--r-accent-glow) 50%,
-        var(--r-border) 70%,
+        var(--border-default) 30%,
+        var(--accent-primary-muted) 50%,
+        var(--border-default) 70%,
         transparent
       );
     }
@@ -409,7 +396,7 @@
   .reg__logo-hex {
     position: absolute;
     inset: 0;
-    border: 1.5px solid var(--r-accent);
+    border: 1.5px solid var(--accent-primary);
     border-radius: 8px;
     transform: rotate(0deg);
     opacity: 0.7;
@@ -436,7 +423,7 @@
     font-size: 1.125rem;
     font-weight: 600;
     letter-spacing: -0.02em;
-    color: var(--r-text);
+    color: var(--text-primary);
   }
 
   /* --- Step tracker --- */
@@ -453,7 +440,7 @@
     align-items: center;
     gap: 16px;
     padding: 14px 16px;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     transition: all 0.3s ease;
     opacity: 0.4;
 
@@ -462,7 +449,7 @@
     }
 
     &--current {
-      background: var(--r-accent-soft);
+      background: var(--accent-primary-muted);
       box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.12);
     }
   }
@@ -473,29 +460,28 @@
     justify-content: center;
     width: 32px;
     height: 32px;
-    font-family: var(--r-mono);
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--r-accent);
-    background: var(--r-surface-2);
-    border: 1px solid var(--r-border);
-    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--accent-primary);
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
     flex-shrink: 0;
     transition: all 0.3s ease;
 
     .reg__step--active & {
-      border-color: var(--r-accent);
-      background: rgba(99, 102, 241, 0.12);
+      border-color: var(--accent-primary);
+      background: var(--accent-primary-muted);
     }
 
-    // checkmark state
     svg {
-      color: var(--r-success);
+      color: var(--accent-success);
     }
 
     .reg__step--active:has(svg) & {
-      border-color: var(--r-success);
-      background: var(--r-success-soft);
+      border-color: var(--accent-success);
+      background: var(--accent-success-muted);
     }
   }
 
@@ -506,26 +492,25 @@
   }
 
   .reg__step-title {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--r-text);
+    font-size: var(--text-base);
+    font-weight: var(--weight-medium);
+    color: var(--text-primary);
   }
 
   .reg__step-desc {
-    font-size: 0.75rem;
-    color: var(--r-text-muted);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
   }
 
   .reg__step-line {
     width: 1px;
     height: 16px;
     margin-left: 31px;
-    background: var(--r-border);
+    background: var(--border-default);
     transition: background 0.4s ease;
 
     &--done {
-      background: var(--r-success);
-      box-shadow: 0 0 6px var(--r-success-soft);
+      background: var(--accent-success);
     }
   }
 
@@ -536,9 +521,10 @@
     align-items: flex-start;
     gap: 12px;
     padding: 16px;
-    background: var(--r-surface);
-    border: 1px solid var(--r-border);
-    border-radius: 12px;
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
     width: 100%;
   }
 
@@ -548,17 +534,17 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    background: var(--r-accent-soft);
+    background: var(--accent-primary-muted);
     border: 1px solid rgba(99, 102, 241, 0.1);
-    border-radius: 8px;
-    color: var(--r-accent);
+    border-radius: var(--radius-md);
+    color: var(--accent-primary);
     flex-shrink: 0;
   }
 
   .reg__info-text {
-    font-size: 0.75rem;
-    line-height: 1.6;
-    color: var(--r-text-muted);
+    font-size: var(--text-xs);
+    line-height: var(--leading-relaxed);
+    color: var(--text-muted);
   }
 
   /* --- Right form panel --- */
@@ -593,29 +579,29 @@
   .reg__form-badge {
     display: inline-block;
     padding: 4px 12px;
-    font-family: var(--r-mono);
+    font-family: var(--font-mono);
     font-size: 0.6875rem;
-    font-weight: 500;
+    font-weight: var(--weight-medium);
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--r-success);
-    background: var(--r-success-soft);
+    color: var(--accent-success);
+    background: var(--accent-success-muted);
     border: 1px solid rgba(34, 197, 94, 0.15);
     border-radius: 6px;
     margin-bottom: 20px;
   }
 
   .reg__form-title {
-    font-size: 1.75rem;
-    font-weight: 600;
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-semibold);
     letter-spacing: -0.02em;
-    color: var(--r-text);
+    color: var(--text-primary);
     margin-bottom: 8px;
   }
 
   .reg__form-desc {
     font-size: 0.9375rem;
-    color: var(--r-text-muted);
+    color: var(--text-muted);
   }
 
   /* --- Form --- */
@@ -636,9 +622,9 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--r-text-dim);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
     letter-spacing: 0.01em;
 
     svg { opacity: 0.5; }
@@ -647,34 +633,34 @@
   .reg__input {
     width: 100%;
     padding: 12px 16px;
-    font-family: var(--r-font);
+    font-family: var(--font-sans);
     font-size: 0.9375rem;
-    color: var(--r-text);
-    background: var(--r-surface);
-    border: 1px solid var(--r-border);
-    border-radius: 10px;
+    color: var(--text-primary);
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
     outline: none;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
 
     &::placeholder {
-      color: var(--r-text-muted);
+      color: var(--text-muted);
       opacity: 0.6;
     }
 
     &:hover {
-      border-color: var(--r-border-hover);
-      background: var(--r-surface-2);
+      border-color: var(--border-strong);
+      background: var(--surface-2);
     }
 
     &:focus {
-      border-color: var(--r-accent);
-      box-shadow: 0 0 0 3px var(--r-accent-glow), 0 0 20px rgba(99, 102, 241, 0.08);
-      background: var(--r-surface-2);
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px var(--accent-primary-muted);
+      background: var(--surface-1);
     }
 
     &--key {
-      font-family: var(--r-mono);
-      font-size: 0.8125rem;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
       letter-spacing: 0.01em;
       padding-right: 48px;
     }
@@ -696,31 +682,31 @@
     height: 36px;
     background: none;
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    color: var(--r-text-muted);
-    transition: color 0.15s ease, background 0.15s ease;
+    color: var(--text-muted);
+    transition: color var(--transition-fast), background var(--transition-fast);
 
     &:hover {
-      color: var(--r-text-dim);
-      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-secondary);
+      background: var(--surface-2);
     }
   }
 
   .reg__hint {
-    font-size: 0.75rem;
-    color: var(--r-text-muted);
+    font-size: var(--text-xs);
+    color: var(--text-muted);
 
     a {
-      color: var(--r-accent);
+      color: var(--accent-primary);
       text-decoration: none;
       display: inline-flex;
       align-items: center;
       gap: 2px;
-      transition: color 0.15s ease, gap 0.15s ease;
+      transition: color var(--transition-fast), gap var(--transition-fast);
 
       &:hover {
-        color: #818cf8;
+        color: var(--accent-primary-hover);
         gap: 4px;
       }
     }
@@ -733,11 +719,11 @@
     align-items: center;
     gap: 8px;
     padding: 10px 14px;
-    font-size: 0.8125rem;
-    color: var(--r-danger);
-    background: rgba(239, 68, 68, 0.08);
+    font-size: var(--text-sm);
+    color: var(--accent-danger);
+    background: var(--accent-danger-muted);
     border: 1px solid rgba(239, 68, 68, 0.15);
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     animation: errorShake 0.4s ease;
 
     svg { flex-shrink: 0; }
@@ -761,41 +747,30 @@
     width: 100%;
     padding: 13px 24px;
     margin-top: 4px;
-    font-family: var(--r-font);
+    font-family: var(--font-sans);
     font-size: 0.9375rem;
-    font-weight: 600;
+    font-weight: var(--weight-semibold);
     color: white;
-    background: var(--r-accent);
+    background: var(--accent-primary);
     border: none;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    transition: all 0.2s ease;
-    position: relative;
-    overflow: hidden;
-
-    &::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to bottom, rgba(255,255,255,0.1), transparent);
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
+    transition: all var(--transition-fast);
 
     &:hover:not(:disabled) {
+      background: var(--accent-primary-hover);
       transform: translateY(-1px);
-      box-shadow: 0 4px 20px var(--r-accent-glow), 0 0 40px rgba(99, 102, 241, 0.15);
-
-      &::before { opacity: 1; }
+      box-shadow: var(--shadow-md);
     }
 
     &:active:not(:disabled) {
+      background: var(--accent-primary-active);
       transform: translateY(0);
-      box-shadow: 0 2px 10px var(--r-accent-glow);
+      box-shadow: var(--shadow-sm);
     }
 
     &:disabled {
-      opacity: 0.6;
+      opacity: 0.5;
       cursor: not-allowed;
     }
   }
@@ -822,24 +797,9 @@
     gap: 6px;
     margin-top: 28px;
     padding-top: 24px;
-    border-top: 1px solid var(--r-border);
-    font-size: 0.8125rem;
-    color: var(--r-text-muted);
-  }
-
-  .reg__footer-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    color: var(--r-accent);
-    font-weight: 500;
-    text-decoration: none;
-    transition: gap 0.2s ease, color 0.2s ease;
-
-    &:hover {
-      color: #818cf8;
-      gap: 5px;
-    }
+    border-top: 1px solid var(--border-default);
+    font-size: var(--text-sm);
+    color: var(--text-muted);
   }
 
   /* --- Responsive --- */
@@ -863,9 +823,9 @@
         background: linear-gradient(
           to right,
           transparent,
-          var(--r-border) 30%,
-          var(--r-accent-glow) 50%,
-          var(--r-border) 70%,
+          var(--border-default) 30%,
+          var(--accent-primary-muted) 50%,
+          var(--border-default) 70%,
           transparent
         );
       }
@@ -920,7 +880,7 @@
     }
 
     .reg__form-title {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
     }
   }
 </style>

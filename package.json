@@ -4,25 +4,36 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"dev": "vite dev",
+		"dev": "docker compose -f docker-compose.dev.yml up --build",
+		"dev:local": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"lint": "eslint .",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"ci": "npm run lint && npm run check && npm run test"
 	},
 	"devDependencies": {
+		"@eslint/js": "^10.0.1",
 		"@sveltejs/adapter-auto": "^7.0.1",
 		"@sveltejs/kit": "^2.57.0",
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@types/bcrypt": "^6.0.0",
 		"@types/uuid": "^10.0.0",
 		"drizzle-kit": "^0.31.10",
+		"eslint": "^10.2.0",
+		"eslint-plugin-svelte": "^3.17.0",
+		"globals": "^17.4.0",
 		"sass-embedded": "^1.99.0",
 		"svelte": "^5.55.2",
 		"svelte-check": "^4.4.6",
 		"typescript": "^6.0.2",
-		"vite": "^8.0.7"
+		"typescript-eslint": "^8.58.1",
+		"vite": "^8.0.7",
+		"vitest": "^4.1.4"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.86.1",

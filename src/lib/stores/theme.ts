@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-const stored = browser ? localStorage.getItem('theme') ?? 'dark' : 'dark';
+const stored = browser ? localStorage.getItem('theme') ?? 'light' : 'light';
 export const theme = writable<'light' | 'dark'>(stored as 'light' | 'dark');
 
 if (browser) {
