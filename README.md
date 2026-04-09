@@ -1,6 +1,23 @@
-# Managed Agents
+# ManagedAgentUI — Self-Hosted Control Panel for Anthropic Managed Agents
 
-A self-hosted dashboard for orchestrating autonomous Claude agents. Monitor, control, and deploy AI agents with end-to-end encryption and real-time streaming.
+Deploy, monitor, and chat with autonomous Claude agents — end-to-end encrypted, fully Dockerized.
+
+## Features
+
+- **Agent Management** — Create, configure, and version your managed agents
+- **Environment Control** — Manage sandbox environments with networking and package settings
+- **Session Tracking** — Monitor active and past agent sessions
+- **Real-time Chat** — Stream agent responses via SSE with a live chat interface
+- **Multi-user Auth** — First user becomes admin; each user manages their own API keys
+- **Encrypted API Keys** — AES-256-GCM encryption at rest, decrypted server-side only
+- **Dashboard Overview** — At-a-glance summary of agents, environments, and sessions
+- **Self-hosted** — Run everything with a single `docker compose up`
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose
+- [Node.js](https://nodejs.org/) 22+ (for development)
+- An [Anthropic API key](https://console.anthropic.com/) with Managed Agents access
 
 ## Quick Start (Docker)
 
@@ -34,38 +51,35 @@ That's it. After the admin account is created, the setup page is permanently dis
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `POSTGRES_PASSWORD` | Yes | — | PostgreSQL password |
-| `POSTGRES_USER` | No | `managed_agents` | PostgreSQL user |
-| `POSTGRES_DB` | No | `managed_agents` | PostgreSQL database name |
-| `ENCRYPTION_KEY` | Yes | — | 64-char hex string for AES-256-GCM API key encryption |
-| `SESSION_SECRET` | Yes | — | Random string for session signing |
-| `SETUP_PASSWORD` | Yes* | — | One-time password for initial admin account creation |
-| `PORT` | No | `3000` | Port to expose the app on |
+| Variable            | Required | Default          | Description                                           |
+| ------------------- | -------- | ---------------- | ----------------------------------------------------- |
+| `POSTGRES_PASSWORD` | Yes      | —                | PostgreSQL password                                   |
+| `POSTGRES_USER`     | No       | `managed_agents` | PostgreSQL user                                       |
+| `POSTGRES_DB`       | No       | `managed_agents` | PostgreSQL database name                              |
+| `ENCRYPTION_KEY`    | Yes      | —                | 64-char hex string for AES-256-GCM API key encryption |
+| `SESSION_SECRET`    | Yes      | —                | Random string for session signing                     |
+| `SETUP_PASSWORD`    | Yes\*    | —                | One-time password for initial admin account creation  |
+| `PORT`              | No       | `3000`           | Port to expose the app on                             |
 
-*`SETUP_PASSWORD` is only needed until the admin account is created. It can be removed from `.env` afterwards.
+\*`SETUP_PASSWORD` is only needed until the admin account is created. It can be removed from `.env` afterwards.
 
 ## Development
 
-### Docker (recommended)
-
 ```sh
-docker compose -f docker-compose.dev.yml up --build
-```
-
-Open `http://localhost:5173`. Source files are volume-mounted — edits to `src/`, `static/`, config files, and migrations trigger live reload automatically.
-
-### Local (no Docker for the app)
-
-```sh
-# Start PostgreSQL
-docker compose -f docker-compose.dev.yml up postgres -d
-
-# Install dependencies and run dev server
-npm install
 npm run dev
 ```
+
+This starts the dev container (PostgreSQL + app) via Docker Compose. Open `http://localhost:5173`. Source files are volume-mounted — edits to `src/`, `static/`, config files, and migrations trigger live reload automatically.
+
+## Contributing
+
+Contributions are welcome! Please open an issue to discuss your idea before submitting a pull request.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Run `npm run dev` to start the dev environment
+4. Make your changes and ensure `npm run check` and `npm run lint` pass
+5. Commit your changes and open a pull request
 
 ## Architecture
 
@@ -74,3 +88,7 @@ npm run dev
 - **Database**: PostgreSQL 16
 - **Auth**: bcrypt passwords, in-memory sessions, AES-256-GCM encrypted API keys
 - **API**: Anthropic Claude API proxy with SSE streaming
+
+## License
+
+[MIT](LICENSE)
