@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, integer, timestamp, customType, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, boolean, integer, timestamp, customType, unique, jsonb } from 'drizzle-orm/pg-core';
 
 const bytea = customType<{ data: Buffer }>({
   dataType() {
@@ -102,4 +102,48 @@ export const userPreferences = pgTable('user_preferences', {
   defaultEnvId: text('default_env_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+export const scheduledTasks = pgTable('scheduled_tasks', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  agentId: text('agent_id').notNull(),
+  environmentId: text('environment_id').notNull(),
+  promptTemplate: text('prompt_template').notNull(),
+  cronExpression: text('cron_expression').notNull(),
+  schedulePreset: text('schedule_preset').notNull(),
+  timezone: text('timezone').notNull().default('UTC'),
+  sessionMode: text('session_mode').notNull().default('new_session'),
+  activeSessionId: text('active_session_id'),
+  enabled: boolean('enabled').notNull().default(true),
+  lockedAt: timestamp('locked_at'),
+  nextRunAt: timestamp('next_run_at').notNull(),
+  lastRunAt: timestamp('last_run_at'),
+  runCount: integer('run_count').notNull().default(0),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+export const taskExecutions = pgTable('task_executions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  taskId: uuid('task_id').references(() => scheduledTasks.id, { onDelete: 'cascade' }).notNull(),
+  sessionId: text('session_id'),
+  status: text('status').notNull().default('running'),
+  promptSent: text('prompt_sent').notNull(),
+  response: text('response'),
+  error: text('error'),
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+  durationMs: integer('duration_ms')
+});
+
+export const taskEditHistory = pgTable('task_edit_history', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  taskId: uuid('task_id').references(() => scheduledTasks.id, { onDelete: 'cascade' }).notNull(),
+  editedBy: uuid('edited_by').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  changes: jsonb('changes').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull()
 });
