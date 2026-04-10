@@ -2,12 +2,24 @@
   import ToolUseCard from './ToolUseCard.svelte';
   import ThinkingBlock from './ThinkingBlock.svelte';
 
-  let {
+  interface ContentBlock {
+    [key: string]: unknown;
+    type: string;
+    text?: string;
+    name?: string;
+    input?: Record<string, unknown>;
+    result?: string;
+    status?: string;
+    thinking?: string;
+    content?: string;
+  }
+
+  const {
     role,
     content
   }: {
     role: 'user' | 'assistant';
-    content: any[];
+    content: ContentBlock[];
   } = $props();
 
   /**
@@ -36,15 +48,16 @@
 
 <div class="message message--{role}">
   <div class="message__bubble">
-    {#each content as block}
+    {#each content as block, index (index)}
       {#if block.type === 'text'}
-        <div class="message-text">{@html formatInlineText(block.text)}</div>
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+        <div class="message-text">{@html formatInlineText(block.text as string)}</div>
       {:else if block.type === 'tool_use'}
         <ToolUseCard
-          name={block.name}
-          input={block.input}
+          name={block.name ?? ''}
+          input={block.input ?? {}}
           result={block.result}
-          status={block.status ?? 'done'}
+          status={(block.status as 'pending' | 'done' | 'error') ?? 'done'}
         />
       {:else if block.type === 'thinking'}
         <ThinkingBlock content={block.thinking ?? block.content ?? block.text ?? ''} />

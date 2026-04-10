@@ -1,5 +1,8 @@
 <script lang="ts">
-  let { data } = $props();
+  import EmptyState from '$components/EmptyState.svelte';
+  import iconSessions from '$lib/assets/icons/empty-sessions.svg';
+
+  const { data } = $props();
 
   function formatDate(dateStr: string): string {
     try {
@@ -99,7 +102,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each data.recentSessions as session}
+            {#each data.recentSessions as session (session.id)}
               <tr class="table__row--clickable" onclick={() => window.location.href = `/sessions/${session.id}`}>
                 <td>
                   <span class="session-title">{session.title || session.id}</span>
@@ -120,9 +123,13 @@
         </table>
       </div>
     {:else}
-      <div class="dashboard-empty">
-        <p>No sessions yet. Start a chat to create your first session.</p>
-      </div>
+      <EmptyState
+        icon={iconSessions}
+        title="No recent sessions."
+        description="Start a chat to see activity here."
+        actionHref="/chat"
+        actionLabel="Start chat"
+      />
     {/if}
   </section>
 
@@ -281,15 +288,6 @@
     }
   }
 
-  .dashboard-empty {
-    padding: var(--space-10) var(--space-8);
-    text-align: center;
-    color: var(--text-muted);
-    font-size: var(--text-sm);
-    background: var(--surface-1);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
-  }
 
   /* Session table cells */
   .session-title {

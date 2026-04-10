@@ -1,11 +1,10 @@
 import type { PageServerLoad } from './$types';
 import { createAnthropicClient } from '$lib/server/anthropic';
 
-export const load: PageServerLoad = async ({ params, locals }) => {
-  const client = await createAnthropicClient(locals.userId!);
+export const load: PageServerLoad = async ({ params }) => {
+  const client = await createAnthropicClient();
   const session = await client.beta.sessions.retrieve(params.id);
-  // Note: events.list may not exist in SDK - fetch events if available
-  let events: any[] = [];
+  const events = [];
   try {
     for await (const event of client.beta.sessions.events.list(params.id)) {
       events.push(event);
@@ -13,5 +12,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   } catch {
     // events listing may not be available
   }
-  return { session, events };
+  return {
+    session: JSON.parse(JSON.stringify(session)),
+    events: JSON.parse(JSON.stringify(events))
+  };
 };

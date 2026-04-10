@@ -22,6 +22,6 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     return json({ error: 'Invalid email or password' }, { status: 401 });
   }
 
-  createSession(cookies, user.id);
-  return json({ success: true });
+  await createSession(cookies, user.id);
+  return json({ success: true, mustResetPassword: user.mustResetPassword });
 };

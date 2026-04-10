@@ -1,14 +1,14 @@
 <script lang="ts">
-  let { events }: { events: any[] } = $props();
+  const { events }: { events: Record<string, unknown>[] } = $props();
 
-  let expandedCards: Record<number, boolean> = $state({});
+  const expandedCards: Record<number, boolean> = $state({});
 
   function toggleCard(index: number) {
     expandedCards[index] = !expandedCards[index];
   }
 
-  function formatTimestamp(ts: string | undefined): string {
-    if (!ts) return '';
+  function formatTimestamp(ts: unknown): string {
+    if (typeof ts !== 'string' || !ts) return '';
     return new Date(ts).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -16,39 +16,24 @@
     });
   }
 
-  function getEventLabel(type: string): string {
-    const labels: Record<string, string> = {
-      'user.message': 'User',
-      'agent.message': 'Assistant',
-      'agent.thinking': 'Thinking',
-      'agent.tool_use': 'Tool Use',
-      'agent.tool_result': 'Tool Result',
-      'agent.mcp_tool_use': 'MCP Tool Use',
-      'agent.mcp_tool_result': 'MCP Tool Result',
-      'session.status_idle': 'Status',
-      'session.status_running': 'Status'
-    };
-    return labels[type] ?? type;
+  function getToolName(event: Record<string, unknown>): string {
+    return (event.name ?? event.tool_name ?? event.tool ?? 'unknown') as string;
   }
 
-  function getToolName(event: any): string {
-    return event.name ?? event.tool_name ?? event.tool ?? 'unknown';
-  }
-
-  function getTextContent(event: any): string {
+  function getTextContent(event: Record<string, unknown>): string {
     if (typeof event.content === 'string') return event.content;
     if (typeof event.text === 'string') return event.text;
     if (typeof event.message === 'string') return event.message;
     if (Array.isArray(event.content)) {
-      return event.content
-        .filter((b: any) => b.type === 'text')
-        .map((b: any) => b.text)
+      return (event.content as Record<string, unknown>[])
+        .filter((b: Record<string, unknown>) => b.type === 'text')
+        .map((b: Record<string, unknown>) => b.text)
         .join('\n');
     }
     return '';
   }
 
-  function formatJson(obj: any): string {
+  function formatJson(obj: unknown): string {
     try {
       return JSON.stringify(obj, null, 2);
     } catch {
@@ -63,7 +48,7 @@
       <p class="event-timeline__empty-text">No events recorded for this session.</p>
     </div>
   {:else}
-    {#each events as event, i}
+    {#each events as event, i (i)}
       {@const type = event.type ?? ''}
 
       {#if type === 'user.message'}

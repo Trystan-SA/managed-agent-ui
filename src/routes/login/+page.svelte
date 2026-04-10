@@ -30,7 +30,7 @@
       }
 
       window.location.href = '/dashboard';
-    } catch (err) {
+    } catch (_e) {
       error = 'Network error. Please try again.';
     } finally {
       loading = false;

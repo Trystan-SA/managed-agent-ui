@@ -4,7 +4,7 @@
   import favicon from '$lib/assets/favicon.svg';
   import Nav from '$components/Nav.svelte';
 
-  let { data, children } = $props();
+  const { data, children } = $props();
 </script>
 
 <svelte:head>

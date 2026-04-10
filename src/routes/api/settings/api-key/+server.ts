@@ -2,32 +2,54 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { apiKeys } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
 import { encrypt } from '$lib/server/crypto';
 
-export const PUT: RequestHandler = async ({ request, locals }) => {
-  const { apiKey, label } = await request.json();
-  if (!apiKey) {
-    return json({ error: 'API key is required' }, { status: 400 });
+function requireAdmin(locals: App.Locals) {
+  if (!locals.userId || locals.userRole !== 'admin') {
+    return json({ error: 'Admin access required' }, { status: 403 });
   }
+  return null;
+}
 
-  const { encrypted, iv } = encrypt(apiKey);
-  const userId = locals.userId!;
+// Get the global API key status
+export const GET: RequestHandler = async ({ locals }) => {
+  const denied = requireAdmin(locals);
+  if (denied) return denied;
 
-  const existing = await db.select().from(apiKeys).where(eq(apiKeys.userId, userId)).limit(1);
+  const [key] = await db
+    .select({ id: apiKeys.id, createdAt: apiKeys.createdAt })
+    .from(apiKeys)
+    .limit(1);
 
-  if (existing.length > 0) {
-    await db.update(apiKeys)
-      .set({ encryptedKey: encrypted, iv, label: label ?? null, updatedAt: new Date() })
-      .where(eq(apiKeys.userId, userId));
-  } else {
-    await db.insert(apiKeys).values({ userId, encryptedKey: encrypted, iv, label });
-  }
-
-  return json({ success: true });
+  return json(key ?? null);
 };
 
+// Set or replace the global API key (admin only)
+export const POST: RequestHandler = async ({ request, locals }) => {
+  const denied = requireAdmin(locals);
+  if (denied) return denied;
+
+  const { apiKey } = await request.json();
+  if (!apiKey) return json({ error: 'API key is required' }, { status: 400 });
+
+  const { encrypted, iv } = encrypt(apiKey);
+
+  // Delete any existing key (single global key)
+  await db.delete(apiKeys);
+
+  const [row] = await db
+    .insert(apiKeys)
+    .values({ userId: locals.userId!, name: 'Global', encryptedKey: encrypted, iv })
+    .returning({ id: apiKeys.id });
+
+  return json({ success: true, id: row.id }, { status: 201 });
+};
+
+// Delete the global API key (admin only)
 export const DELETE: RequestHandler = async ({ locals }) => {
-  await db.delete(apiKeys).where(eq(apiKeys.userId, locals.userId!));
+  const denied = requireAdmin(locals);
+  if (denied) return denied;
+
+  await db.delete(apiKeys);
   return json({ success: true });
 };

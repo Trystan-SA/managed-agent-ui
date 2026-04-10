@@ -2,10 +2,20 @@
   import Badge from '$components/Badge.svelte';
   import EventTimeline from '$components/EventTimeline.svelte';
 
-  let { data } = $props();
+  const { data } = $props();
 
-  const session: any = data.session;
-  const events: any[] = data.events;
+  interface SessionDetail {
+    id: string;
+    status?: string;
+    created_at: string;
+    agent_id?: string;
+    environment_id?: string;
+    model?: string;
+    [key: string]: unknown;
+  }
+
+  const session = data.session as unknown as SessionDetail;
+  const events: Record<string, unknown>[] = data.events;
 
   function formatDate(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString('en-US', {

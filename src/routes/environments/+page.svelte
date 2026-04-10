@@ -1,7 +1,9 @@
 <script lang="ts">
   import { formatDate } from '$lib/utils/format';
+  import EmptyState from '$components/EmptyState.svelte';
+  import iconEnvs from '$lib/assets/icons/empty-environments.svg';
 
-  let { data } = $props();
+  const { data } = $props();
 </script>
 
 <div class="page-header">
@@ -15,15 +17,13 @@
 </div>
 
 {#if data.environments.length === 0}
-  <div class="table-wrap">
-    <div class="table-empty">
-      <div class="table-empty__icon">&#x1f4e6;</div>
-      <div class="table-empty__title">No environments yet</div>
-      <div class="table-empty__description">
-        Create an environment to provide a sandboxed runtime for your agents.
-      </div>
-    </div>
-  </div>
+  <EmptyState
+    icon={iconEnvs}
+    title="No environments yet."
+    description="Create a sandboxed runtime for your agents."
+    actionHref="/environments/new"
+    actionLabel="Create environment"
+  />
 {:else}
   <div class="table-wrap">
     <table class="table">
@@ -36,7 +36,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each data.environments as env}
+        {#each data.environments as env (env.id)}
           <tr
             class="table__row--clickable"
             onclick={() => window.location.href = `/environments/${env.id}`}
@@ -48,7 +48,7 @@
             </td>
             <td>
               <span class="badge badge--info">
-                {env.config?.networking?.type ?? 'unrestricted'}
+                {((env.config as Record<string, unknown>)?.networking as Record<string, unknown>)?.type ?? 'unrestricted'}
               </span>
             </td>
             <td>
@@ -58,7 +58,7 @@
                 <span class="badge badge--idle">Active</span>
               {/if}
             </td>
-            <td>{formatDate(env.created_at)}</td>
+            <td>{formatDate(env.created_at as string)}</td>
           </tr>
         {/each}
       </tbody>

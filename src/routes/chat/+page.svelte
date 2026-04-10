@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { apiFetch } from '$lib/utils/api';
+  import EmptyState from '$components/EmptyState.svelte';
+  import iconIdle from '$lib/assets/icons/empty-idle.svg';
 
   interface Agent {
     id: string;
@@ -141,7 +143,7 @@
           </div>
         {:else}
           <select id="agent" class="form-input" bind:value={selectedAgentId}>
-            {#each agents as agent}
+            {#each agents as agent (agent.id)}
               <option value={agent.id}>{agent.name} — {agent.model}</option>
             {/each}
           </select>
@@ -162,7 +164,7 @@
         {:else}
           <select id="environment" class="form-input" bind:value={selectedEnvId}>
             <option value="">None</option>
-            {#each environments as env}
+            {#each environments as env (env.id)}
               <option value={env.id}>{env.name} — {getNetworkingType(env)}</option>
             {/each}
           </select>
@@ -202,11 +204,13 @@
     {#if loadingSessions}
       <div class="form-loading">Loading sessions...</div>
     {:else if idleSessions.length === 0}
-      <div class="table-empty">
-        <div class="table-empty__icon">&#128172;</div>
-        <p class="table-empty__title">No idle sessions</p>
-        <p class="table-empty__description">Start a new session above, or check <a href="/sessions">all sessions</a> for other statuses.</p>
-      </div>
+      <EmptyState
+        icon={iconIdle}
+        title="No idle sessions."
+        description="Start a new one above, or check all sessions."
+        actionHref="/sessions"
+        actionLabel="All sessions"
+      />
     {:else}
       <div class="table-wrap">
         <table class="table">
@@ -219,7 +223,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each idleSessions as session}
+            {#each idleSessions as session (session.id)}
               <tr
                 class="table__row--clickable"
                 onclick={() => goto(`/chat/${session.id}`)}
@@ -352,16 +356,4 @@
     font-size: var(--text-sm);
   }
 
-  .table-empty {
-    padding: var(--space-10) var(--space-6);
-    text-align: center;
-
-    a {
-      color: var(--accent-primary);
-
-      &:hover {
-        color: var(--accent-primary-hover);
-      }
-    }
-  }
 </style>

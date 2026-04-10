@@ -25,7 +25,7 @@
   </div>
 
   <div class="nav__links">
-    {#each navLinks as link}
+    {#each navLinks as link (link.href)}
       <a
         href={link.href}
         class="nav__link"

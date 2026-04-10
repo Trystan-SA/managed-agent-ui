@@ -21,23 +21,24 @@
 
   onMount(async () => {
     try {
-      const env = await apiFetch<any>(`/api/environments/${envId}`);
-      name = env.name ?? '';
-      const net = env.config?.networking;
+      const env = await apiFetch<Record<string, unknown>>(`/api/environments/${envId}`);
+      name = (env.name as string) ?? '';
+      const config = env.config as Record<string, unknown> | undefined;
+      const net = config?.networking as Record<string, unknown> | undefined;
       if (net?.type === 'limited') {
         networkingType = 'limited';
-        allowedHosts = (net.allowed_hosts ?? []).join('\n');
-        allowMcpServers = net.allow_mcp_servers ?? false;
-        allowPackageManagers = net.allow_package_managers ?? false;
+        allowedHosts = ((net.allowed_hosts ?? []) as string[]).join('\n');
+        allowMcpServers = (net.allow_mcp_servers as boolean) ?? false;
+        allowPackageManagers = (net.allow_package_managers as boolean) ?? false;
       }
-      const pkgs = env.config?.packages;
+      const pkgs = config?.packages as Record<string, string[]> | undefined;
       if (pkgs) {
         pipPackages = (pkgs.pip ?? []).join(', ');
         npmPackages = (pkgs.npm ?? []).join(', ');
         aptPackages = (pkgs.apt ?? []).join(', ');
       }
-    } catch (e: any) {
-      error = e.message || 'Failed to load environment';
+    } catch (_e: unknown) {
+      error = (_e as Error).message || 'Failed to load environment';
     } finally {
       loading = false;
     }
@@ -87,8 +88,8 @@
         })
       });
       await goto(`/environments/${envId}`);
-    } catch (e: any) {
-      error = e.message || 'Failed to update environment';
+    } catch (e: unknown) {
+      error = (e as Error).message || 'Failed to update environment';
     } finally {
       submitting = false;
     }
@@ -125,8 +126,8 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label">Networking Mode</label>
-      <div class="radio-group">
+      <span class="form-label">Networking Mode</span>
+      <div class="radio-group" role="radiogroup" aria-label="Networking Mode">
         <label class="radio-option">
           <input type="radio" bind:group={networkingType} value="unrestricted" />
           <span>Unrestricted</span>
@@ -148,7 +149,7 @@
           id="allowed-hosts"
           class="form-textarea"
           bind:value={allowedHosts}
-          placeholder={"api.example.com\ncdn.example.com"}
+          placeholder="api.example.com&#10;cdn.example.com"
           rows="4"
         ></textarea>
       </div>
@@ -169,7 +170,7 @@
     {/if}
 
     <div class="form-group">
-      <label class="form-label">Packages</label>
+      <span class="form-label">Packages</span>
       <span class="form-hint">Comma-separated package names to pre-install</span>
     </div>
 

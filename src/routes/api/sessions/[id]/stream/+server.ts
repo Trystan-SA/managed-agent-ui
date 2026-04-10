@@ -1,8 +1,8 @@
 import type { RequestHandler } from './$types';
 import { createAnthropicClient } from '$lib/server/anthropic';
 
-export const GET: RequestHandler = async ({ params, locals }) => {
-  const client = await createAnthropicClient(locals.userId!);
+export const GET: RequestHandler = async ({ params, locals: _locals }) => {
+  const client = await createAnthropicClient();
   const stream = await client.beta.sessions.events.stream(params.id);
 
   const readable = new ReadableStream({
