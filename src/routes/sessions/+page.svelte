@@ -2,7 +2,10 @@
   import EmptyState from '$components/EmptyState.svelte';
   import iconSessions from '$lib/assets/icons/empty-sessions.svg';
 
-  let { data } = $props();
+  const { data } = $props();
+
+  interface SessionItem { id: string; status?: string; title?: string; name?: string; agent_id?: string; created_at: string; [key: string]: unknown; }
+
   let confirmAction = $state<{ type: 'archive' | 'delete'; id: string } | null>(null);
 
   function formatDate(dateStr: string): string {
@@ -39,8 +42,8 @@
     window.location.reload();
   }
 
-  const runningSessions = $derived(data.sessions.filter((s: any) => s.status === 'running'));
-  const otherSessions = $derived(data.sessions.filter((s: any) => s.status !== 'running'));
+  const runningSessions = $derived(data.sessions.filter((s: SessionItem) => s.status === 'running'));
+  const otherSessions = $derived(data.sessions.filter((s: SessionItem) => s.status !== 'running'));
 </script>
 
 <svelte:head>
@@ -97,7 +100,7 @@
         Running
       </div>
       <div class="session-grid">
-        {#each runningSessions as session}
+        {#each runningSessions as session (session.id)}
           <a href="/chat/{session.id}" class="session-card session-card--running">
             <div class="session-card__top">
               <span class="session-card__title">{session.title ?? session.name ?? 'Untitled'}</span>
@@ -121,7 +124,7 @@
         <div class="section-label" style="margin-top: var(--space-8);">Recent</div>
       {/if}
       <div class="session-list">
-        {#each otherSessions as session}
+        {#each otherSessions as session (session.id)}
           <div class="session-row">
             <a href="/sessions/{session.id}" class="session-row__main">
               <div class="session-row__left">

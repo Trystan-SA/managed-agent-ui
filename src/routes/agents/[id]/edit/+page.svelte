@@ -1,15 +1,13 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  const { data } = $props();
+  const agent: Record<string, unknown> = data.agent;
 
-  let { data } = $props();
-  const agent: any = data.agent;
-
-  let name = $state(agent.name ?? '');
-  let model = $state(typeof agent.model === 'string' ? agent.model : agent.model?.id ?? 'claude-sonnet-4-6');
-  let systemPrompt = $state(agent.description ?? agent.system ?? '');
-  let currentVersion = agent.version ?? 1;
+  let name = $state((agent.name as string) ?? '');
+  let model = $state(typeof agent.model === 'string' ? agent.model : (agent.model as Record<string, unknown>)?.id as string ?? 'claude-sonnet-4-6');
+  let systemPrompt = $state((agent.description ?? agent.system ?? '') as string);
+  let currentVersion = (agent.version as number) ?? 1;
   let agentToolsetEnabled = $state(false);
-  let toolStates = $state({
+  const toolStates = $state({
     bash: true,
     read: true,
     write: true,
@@ -24,14 +22,15 @@
   let saved = $state(false);
 
   // Parse tools from loaded agent
-  if (agent.tools?.length) {
-    for (const tool of agent.tools) {
+  const agentTools = agent.tools as Record<string, unknown>[] | undefined;
+  if (agentTools?.length) {
+    for (const tool of agentTools) {
       if (tool.type === 'agent_toolset_20260401' || tool.type === 'agent') {
         agentToolsetEnabled = true;
-        const configs = (tool as any).configs ?? [];
+        const configs = (tool as Record<string, unknown>).configs as Record<string, unknown>[] ?? [];
         const allTools: (keyof typeof toolStates)[] = ['bash', 'read', 'write', 'edit', 'glob', 'grep', 'web_fetch', 'web_search'];
         for (const t of allTools) {
-          const cfg = configs.find((c: any) => c.name === t);
+          const cfg = configs.find((c: Record<string, unknown>) => c.name === t);
           toolStates[t] = cfg ? cfg.enabled !== false : true;
         }
       }
@@ -55,7 +54,7 @@
     { key: 'web_search', label: 'Search', icon: '\u2315', tip: 'Search the web for information' }
   ];
 
-  let allToolsEnabled = $derived(Object.values(toolStates).every(Boolean));
+  const allToolsEnabled = $derived(Object.values(toolStates).every(Boolean));
 
   function toggleAllTools() {
     const newVal = !allToolsEnabled;
@@ -64,14 +63,14 @@
     }
   }
 
-  function buildTools(): any[] {
+  function buildTools(): Record<string, unknown>[] {
     if (!agentToolsetEnabled) return [];
 
     const configs = Object.entries(toolStates)
       .filter(([_, enabled]) => !enabled)
       .map(([name]) => ({ name, enabled: false }));
 
-    const tool: any = { type: 'agent_toolset_20260401' };
+    const tool: Record<string, unknown> = { type: 'agent_toolset_20260401' };
     if (configs.length > 0) {
       tool.configs = configs;
     }
@@ -115,8 +114,8 @@
       currentVersion = updated.version ?? currentVersion + 1;
       saved = true;
       setTimeout(() => (saved = false), 3000);
-    } catch (err: any) {
-      error = err.message;
+    } catch (err: unknown) {
+      error = (err as Error).message;
     } finally {
       submitting = false;
     }
@@ -197,7 +196,7 @@
       </div>
       <div class="form-section__card">
         <div class="model-grid">
-          {#each models as m}
+          {#each models as m (m.value)}
             <button
               type="button"
               class="model-card"
@@ -274,7 +273,7 @@
 
         {#if agentToolsetEnabled}
           <div class="tool-chips">
-            {#each toolDefs as tool}
+            {#each toolDefs as tool (tool.key)}
               <button
                 type="button"
                 class="chip"

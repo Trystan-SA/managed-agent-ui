@@ -4,7 +4,7 @@
   import { invalidateAll } from '$app/navigation';
   import { onMount } from 'svelte';
 
-  let { data } = $props();
+  const { data } = $props();
 
   // Navigation
   type Tab = 'api-keys' | 'appearance' | 'account' | 'users';
@@ -18,9 +18,9 @@
   let message = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // --- Admin: User Management ---
-  let userList = $state<any[]>([]);
+  let userList = $state<Record<string, unknown>[]>([]);
   let loadingUsers = $state(true);
-  let inviteList = $state<any[]>([]);
+  let inviteList = $state<Record<string, unknown>[]>([]);
   let loadingInvites = $state(true);
   let inviteEmail = $state('');
   let inviteTempPassword = $state('');
@@ -66,8 +66,8 @@
       }
       message = { type: 'success', text: `User ${email} deleted.` };
       await loadUsers();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -107,8 +107,8 @@
       inviteTempPassword = '';
       useTemporaryPassword = false;
       await loadInvites();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     } finally {
       inviting = false;
     }
@@ -118,8 +118,8 @@
     try {
       await fetch(`/api/admin/invites?id=${id}`, { method: 'DELETE' });
       await loadInvites();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -128,7 +128,7 @@
       await navigator.clipboard.writeText(url);
       copiedUrl = true;
       setTimeout(() => (copiedUrl = false), 2000);
-    } catch {}
+    } catch { /* no-op */ }
   }
 
   function formatDate(iso: string | null): string {
@@ -158,8 +158,8 @@
       keyValue = '';
       showKey = false;
       await invalidateAll();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     } finally {
       savingKey = false;
     }
@@ -173,13 +173,9 @@
       if (!res.ok) throw new Error('Failed to remove API key');
       message = { type: 'success', text: 'API key removed.' };
       await invalidateAll();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     }
-  }
-
-  function toggleTheme() {
-    theme.update((t) => (t === 'dark' ? 'light' : 'dark'));
   }
 
   async function logout() {
@@ -423,7 +419,7 @@
             </div>
           {:else}
             <div class="um-user-list">
-              {#each userList as user}
+              {#each userList as user (user.id)}
                 <div class="um-user">
                   <div class="um-user__avatar">
                     {user.email?.[0]?.toUpperCase() ?? '?'}
@@ -522,7 +518,7 @@
               Invitations
             </div>
             <div class="um-invite-list">
-              {#each inviteList as inv}
+              {#each inviteList as inv (inv.id)}
                 <div class="um-invite-row">
                   <div class="um-invite-row__info">
                     <span class="um-invite-row__email">{inv.email}</span>

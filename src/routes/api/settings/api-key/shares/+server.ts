@@ -56,8 +56,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   try {
     await db.insert(apiKeyShares).values({ apiKeyId, sharedWithUserId: userId });
     return json({ success: true }, { status: 201 });
-  } catch (e: any) {
-    if (e.code === '23505') return json({ error: 'Already shared with this user' }, { status: 409 });
+  } catch (e: unknown) {
+    if (e instanceof Error && (e as Error & { code?: string }).code === '23505') return json({ error: 'Already shared with this user' }, { status: 409 });
     throw e;
   }
 };

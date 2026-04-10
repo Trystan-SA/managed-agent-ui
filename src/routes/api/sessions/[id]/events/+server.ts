@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createAnthropicClient } from '$lib/server/anthropic';
 
-export const POST: RequestHandler = async ({ params, request, locals }) => {
+export const POST: RequestHandler = async ({ params, request, locals: _locals }) => {
   const body = await request.json();
   const client = await createAnthropicClient();
   const result = await client.beta.sessions.events.send(params.id, body);

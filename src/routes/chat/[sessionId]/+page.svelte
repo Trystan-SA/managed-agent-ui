@@ -6,15 +6,18 @@
   import Badge from '$components/Badge.svelte';
   import { apiFetch } from '$lib/utils/api';
 
-  let { data } = $props();
+  const { data } = $props();
+
+  // Loose content block type for streaming events
+  interface ContentBlock { type: string; [key: string]: unknown; }
 
   // --- Session list for sidebar ---
-  let sessions: any[] = $state([]);
+  let sessions: Record<string, unknown>[] = $state([]);
 
   async function loadSessions() {
     try {
-      const result = await apiFetch<any>('/api/sessions');
-      sessions = Array.isArray(result) ? result : result.data ?? [];
+      const result = await apiFetch<Record<string, unknown>>('/api/sessions');
+      sessions = Array.isArray(result) ? result : (result.data as Record<string, unknown>[]) ?? [];
     } catch {
       sessions = [];
     }
@@ -25,7 +28,7 @@
   });
 
   // --- Message state ---
-  let messages: { role: 'user' | 'assistant'; content: any[] }[] = $state([]);
+  const messages: { role: 'user' | 'assistant'; content: ContentBlock[] }[] = $state([]);
   let status: string = $state(data.session?.status ?? 'idle');
   let inputText: string = $state('');
   let evtSource: EventSource | null = $state(null);
@@ -60,9 +63,9 @@
   });
 
   // --- Derived state ---
-  let isRunning = $derived(status === 'running');
-  let sessionId = $derived($page.params.sessionId);
-  let sessionTitle = $derived(
+  const isRunning = $derived(status === 'running');
+  const sessionId = $derived($page.params.sessionId);
+  const sessionTitle = $derived(
     data.session?.title ?? data.session?.name ?? `Session ${sessionId.slice(0, 8)}...`
   );
 
@@ -104,7 +107,7 @@
     }
   }
 
-  function handleStreamEvent(eventData: any) {
+  function handleStreamEvent(eventData: ContentBlock) {
     const assistantMsg = messages.findLast((m) => m.role === 'assistant');
     if (!assistantMsg && eventData.type !== 'session.status_idle' && eventData.type !== 'session.status_running') {
       // No assistant message to append to — create one
@@ -116,12 +119,12 @@
     switch (eventData.type) {
       case 'agent.message': {
         if (!currentMsg) break;
-        for (const block of eventData.content ?? []) {
+        for (const block of (eventData.content as ContentBlock[]) ?? []) {
           if (block.type === 'text') {
             const lastBlock = currentMsg.content[currentMsg.content.length - 1];
             if (lastBlock && lastBlock.type === 'text') {
               // Append to existing text block
-              lastBlock.text += block.text;
+              lastBlock.text = String(lastBlock.text) + String(block.text);
             } else {
               currentMsg.content.push({ type: 'text', text: block.text });
             }
@@ -159,7 +162,7 @@
         if (!currentMsg) break;
         const toolId = eventData.tool_use_id ?? eventData.id;
         const toolBlock = currentMsg.content.find(
-          (b: any) => b.type === 'tool_use' && b.id === toolId
+          (b: ContentBlock) => b.type === 'tool_use' && b.id === toolId
         );
         if (toolBlock) {
           toolBlock.result = eventData.content ?? eventData.result ?? eventData.output;
@@ -281,7 +284,7 @@
         </div>
       {/if}
 
-      {#each messages as msg}
+      {#each messages as msg, index (index)}
         <ChatMessage role={msg.role} content={msg.content} />
       {/each}
 

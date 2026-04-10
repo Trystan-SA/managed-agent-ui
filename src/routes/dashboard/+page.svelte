@@ -2,7 +2,7 @@
   import EmptyState from '$components/EmptyState.svelte';
   import iconSessions from '$lib/assets/icons/empty-sessions.svg';
 
-  let { data } = $props();
+  const { data } = $props();
 
   function formatDate(dateStr: string): string {
     try {
@@ -102,7 +102,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each data.recentSessions as session}
+            {#each data.recentSessions as session (session.id)}
               <tr class="table__row--clickable" onclick={() => window.location.href = `/sessions/${session.id}`}>
                 <td>
                   <span class="session-title">{session.title || session.id}</span>

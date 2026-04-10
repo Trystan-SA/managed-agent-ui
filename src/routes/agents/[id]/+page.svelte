@@ -1,13 +1,13 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
 
-  let { data } = $props();
+  const { data } = $props();
   let archiving = $state(false);
   let showArchiveConfirm = $state(false);
 
-  const agent: any = data.agent;
-  const modelId: string = typeof agent.model === 'string' ? agent.model : agent.model?.id ?? '';
-  const description: string = agent.description ?? agent.system ?? '';
+  const agent: Record<string, unknown> = data.agent;
+  const modelId: string = typeof agent.model === 'string' ? agent.model : (agent.model as Record<string, unknown>)?.id as string ?? '';
+  const description: string = (agent.description ?? agent.system ?? '') as string;
   const isArchived = !!agent.archived_at;
 
   function formatDate(dateStr: string): string {
@@ -27,13 +27,14 @@
     const enabled: string[] = [];
     const disabled: string[] = [];
 
-    if (!agent.tools?.length) return { enabled: [], disabled: [] };
+    const agentTools = agent.tools as Record<string, unknown>[] | undefined;
+    if (!agentTools?.length) return { enabled: [], disabled: [] };
 
-    for (const tool of agent.tools) {
+    for (const tool of agentTools) {
       if (tool.type === 'agent_toolset_20260401') {
-        const configs = tool.configs ?? [];
+        const configs = (tool.configs ?? []) as Record<string, unknown>[];
         for (const t of allTools) {
-          const cfg = configs.find((c: any) => c.name === t);
+          const cfg = configs.find((c: Record<string, unknown>) => c.name === t);
           if (cfg ? cfg.enabled !== false : true) {
             enabled.push(t);
           } else {
@@ -74,8 +75,8 @@
         throw new Error(err.error?.message || `Archive failed (${res.status})`);
       }
       await goto('/agents');
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert((err as Error).message);
     } finally {
       archiving = false;
       showArchiveConfirm = false;
@@ -176,10 +177,10 @@
       </div>
       {#if tools.enabled.length > 0 || tools.disabled.length > 0}
         <div class="tool-grid">
-          {#each tools.enabled as tool}
+          {#each tools.enabled as tool (tool)}
             <span class="tool-chip tool-chip--on">{tool}</span>
           {/each}
-          {#each tools.disabled as tool}
+          {#each tools.disabled as tool (tool)}
             <span class="tool-chip tool-chip--off">{tool}</span>
           {/each}
         </div>
@@ -210,7 +211,7 @@
     <section class="versions">
       <h2 class="versions__title">Version History</h2>
       <div class="versions__list">
-        {#each data.versions as ver, i}
+        {#each data.versions as ver, i (ver.version)}
           {@const verDesc = ver.description ?? ver.system ?? ''}
           <div class="version-row" class:version-row--current={i === 0}>
             <div class="version-row__marker">

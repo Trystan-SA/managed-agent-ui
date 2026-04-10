@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
-
-  let { data } = $props();
+  const { data } = $props();
 
   let password = $state('');
   let temporaryPassword = $state('');

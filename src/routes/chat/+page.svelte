@@ -143,7 +143,7 @@
           </div>
         {:else}
           <select id="agent" class="form-input" bind:value={selectedAgentId}>
-            {#each agents as agent}
+            {#each agents as agent (agent.id)}
               <option value={agent.id}>{agent.name} — {agent.model}</option>
             {/each}
           </select>
@@ -164,7 +164,7 @@
         {:else}
           <select id="environment" class="form-input" bind:value={selectedEnvId}>
             <option value="">None</option>
-            {#each environments as env}
+            {#each environments as env (env.id)}
               <option value={env.id}>{env.name} — {getNetworkingType(env)}</option>
             {/each}
           </select>
@@ -223,7 +223,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each idleSessions as session}
+            {#each idleSessions as session (session.id)}
               <tr
                 class="table__row--clickable"
                 onclick={() => goto(`/chat/${session.id}`)}

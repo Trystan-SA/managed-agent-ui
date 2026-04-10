@@ -3,7 +3,7 @@
   import EmptyState from '$components/EmptyState.svelte';
   import iconEnvs from '$lib/assets/icons/empty-environments.svg';
 
-  let { data } = $props();
+  const { data } = $props();
 </script>
 
 <div class="page-header">
@@ -36,7 +36,7 @@
         </tr>
       </thead>
       <tbody>
-        {#each data.environments as env}
+        {#each data.environments as env (env.id)}
           <tr
             class="table__row--clickable"
             onclick={() => window.location.href = `/environments/${env.id}`}

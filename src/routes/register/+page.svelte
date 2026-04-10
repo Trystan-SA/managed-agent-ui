@@ -14,7 +14,7 @@
     requestAnimationFrame(() => (mounted = true));
   });
 
-  let currentStep = $derived(
+  const currentStep = $derived(
     !setupVerified ? 1 : !email ? 2 : 3
   );
 
@@ -38,7 +38,7 @@
 
       setupVerified = true;
       error = '';
-    } catch (err) {
+    } catch (_e) {
       error = 'Network error. Please try again.';
     } finally {
       loading = false;
@@ -64,7 +64,7 @@
       }
 
       window.location.href = '/dashboard';
-    } catch (err) {
+    } catch (_e) {
       error = 'Network error. Please try again.';
     } finally {
       loading = false;

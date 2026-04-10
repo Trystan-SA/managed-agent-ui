@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { smtpSettings } from '$lib/server/db/schema';
-import { encrypt, decrypt } from '$lib/server/crypto';
+import { encrypt } from '$lib/server/crypto';
 import { sendEmail } from '$lib/server/email';
 
 function requireAdmin(locals: App.Locals) {
@@ -68,7 +68,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     const sent = await sendEmail(testEmail, 'Managed Agents — SMTP Test', '<p>SMTP is configured correctly.</p>');
     if (!sent) return json({ error: 'SMTP is not configured' }, { status: 400 });
     return json({ success: true });
-  } catch (e: any) {
-    return json({ error: `SMTP test failed: ${e.message}` }, { status: 500 });
+  } catch (e: unknown) {
+    return json({ error: `SMTP test failed: ${e instanceof Error ? e.message : String(e)}` }, { status: 500 });
   }
 };

@@ -4,7 +4,7 @@ import { createAnthropicClient } from '$lib/server/anthropic';
 
 export const GET: RequestHandler = async () => {
   const client = await createAnthropicClient();
-  const agents: any[] = [];
+  const agents: Record<string, unknown>[] = [];
   for await (const agent of client.beta.agents.list()) {
     agents.push(agent);
   }

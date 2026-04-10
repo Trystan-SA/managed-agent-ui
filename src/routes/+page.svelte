@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
 
-  let { data } = $props();
+  const { data } = $props();
 
   onMount(() => {
     goto(data.userId ? '/dashboard' : '/login');

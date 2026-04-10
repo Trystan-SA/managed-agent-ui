@@ -2,11 +2,11 @@
   import { onMount } from 'svelte';
 
   // Users state
-  let userList = $state<any[]>([]);
+  let userList = $state<Record<string, unknown>[]>([]);
   let loadingUsers = $state(true);
 
   // Invites state
-  let inviteList = $state<any[]>([]);
+  let inviteList = $state<Record<string, unknown>[]>([]);
   let loadingInvites = $state(true);
 
   // Invite form
@@ -37,7 +37,7 @@
     try {
       const res = await fetch('/api/admin/users');
       userList = await res.json();
-    } catch { userList = []; }
+    } catch { /* no-op */ userList = []; }
     finally { loadingUsers = false; }
   }
 
@@ -46,7 +46,7 @@
     try {
       const res = await fetch('/api/admin/invites');
       inviteList = await res.json();
-    } catch { inviteList = []; }
+    } catch { /* no-op */ inviteList = []; }
     finally { loadingInvites = false; }
   }
 
@@ -60,7 +60,7 @@
         smtpUsername = data.username;
         smtpFromEmail = data.fromEmail;
       }
-    } catch {}
+    } catch { /* no-op */ }
   }
 
   function formatDate(d: string): string {
@@ -79,8 +79,8 @@
       }
       message = { type: 'success', text: `User ${email} deleted.` };
       await loadUsers();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -118,8 +118,8 @@
       inviteEmail = '';
       inviteTempPassword = '';
       await loadInvites();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     } finally {
       inviting = false;
     }
@@ -129,8 +129,8 @@
     try {
       await fetch(`/api/admin/invites?id=${id}`, { method: 'DELETE' });
       await loadInvites();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -155,8 +155,8 @@
       }
       message = { type: 'success', text: 'SMTP settings saved.' };
       smtpPassword = '';
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     } finally {
       savingSmtp = false;
     }
@@ -177,8 +177,8 @@
         throw new Error(err.error);
       }
       message = { type: 'success', text: `Test email sent to ${smtpTestEmail}` };
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     } finally {
       testingSmtp = false;
     }
@@ -222,7 +222,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each userList as user}
+            {#each userList as user (user.id)}
               <tr>
                 <td>{user.email}</td>
                 <td><span class="admin__badge admin__badge--{user.role}">{user.role}</span></td>
@@ -290,7 +290,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each inviteList as inv}
+            {#each inviteList as inv (inv.id)}
               <tr>
                 <td>{inv.email}</td>
                 <td>

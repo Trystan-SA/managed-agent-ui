@@ -2,12 +2,12 @@
   import ToolUseCard from './ToolUseCard.svelte';
   import ThinkingBlock from './ThinkingBlock.svelte';
 
-  let {
+  const {
     role,
     content
   }: {
     role: 'user' | 'assistant';
-    content: any[];
+    content: Record<string, unknown>[];
   } = $props();
 
   /**
@@ -36,9 +36,10 @@
 
 <div class="message message--{role}">
   <div class="message__bubble">
-    {#each content as block}
+    {#each content as block, index (index)}
       {#if block.type === 'text'}
-        <div class="message-text">{@html formatInlineText(block.text)}</div>
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+        <div class="message-text">{@html formatInlineText(block.text as string)}</div>
       {:else if block.type === 'tool_use'}
         <ToolUseCard
           name={block.name}

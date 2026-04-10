@@ -73,6 +73,16 @@ drizzle/                 # Database migrations
 - Server-only imports under `$lib/server/` — SvelteKit enforces this boundary
 - API routes return `{ error, status }` on failure, domain data on success
 
+### Lint Rules (must pass `npm run lint`)
+- **`prefer-const`**: Always use `const` for `$props()`, `$derived()`, and `$state()` bindings that are never reassigned: `const { data } = $props()`, `const x = $derived(...)`, `const x = $state(...)`
+- **No `any` types**: Never use `any`. Use `Record<string, unknown>` for generic objects, `unknown` for catch variables, or define a local interface. For catch blocks: `catch (e: unknown)` with `if (e instanceof Error)` guard.
+- **No unused imports/vars**: Remove all unused imports. For required-but-unused function params (e.g., SvelteKit `locals`), prefix with underscore: `_locals`.
+- **`{#each}` blocks need keys**: Always add a key — `{#each items as item (item.id)}`. Use `(index)` only when no stable ID exists.
+- **No empty blocks**: Add `// no-op` inside empty `catch {}` or other empty blocks.
+- **`{@html}` requires disable comment**: Add `<!-- eslint-disable-next-line svelte/no-at-html-tags -->` before intentional `{@html}` usage.
+- **No useless mustaches**: Don't wrap string literals in `{"..."}` — use plain text or HTML entities (`&#10;` for newlines in attributes).
+- **Use `SvelteSet`/`SvelteMap`**: Import from `svelte/reactivity` instead of native `Set`/`Map` for reactive collections in Svelte 5 components.
+
 ### Database
 - All tables use UUID primary keys
 - Timestamps: `created_at` (always), `updated_at` (where mutable)

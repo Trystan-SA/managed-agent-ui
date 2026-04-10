@@ -1,11 +1,11 @@
 <script lang="ts">
   import Badge from './Badge.svelte';
 
-  let {
+  const {
     sessions,
     currentSessionId
   }: {
-    sessions: any[];
+    sessions: Record<string, unknown>[];
     currentSessionId?: string;
   } = $props();
 
@@ -39,7 +39,7 @@
   </div>
 
   <div class="sidebar__items">
-    {#each sessions as session}
+    {#each sessions as session (session.id)}
       {@const isActive = session.id === currentSessionId}
       <a
         href="/chat/{session.id}"

@@ -6,7 +6,7 @@ export const load: PageServerLoad = async ({ params }) => {
   const [agent, versions] = await Promise.all([
     client.beta.agents.retrieve(params.id),
     (async () => {
-      const v: any[] = [];
+      const v: Record<string, unknown>[] = [];
       for await (const ver of client.beta.agents.versions.list(params.id)) {
         v.push(ver);
       }

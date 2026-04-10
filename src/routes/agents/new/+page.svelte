@@ -303,8 +303,8 @@ Make small, reviewable changes. Never refactor and add features in the same step
     { key: 'web_search', label: 'Search', icon: '\u2315', tip: 'Search the web for information' }
   ];
 
-  let allToolsEnabled = $derived(Object.values(toolStates).every(Boolean));
-  let formDirty = $derived(name.trim() !== '' || systemPrompt.trim() !== '');
+  const allToolsEnabled = $derived(Object.values(toolStates).every(Boolean));
+  const formDirty = $derived(name.trim() !== '' || systemPrompt.trim() !== '');
   let showConfirm = $state(false);
   let pendingPreset = $state<Preset | null>(null);
 
@@ -315,14 +315,14 @@ Make small, reviewable changes. Never refactor and add features in the same step
     }
   }
 
-  function buildTools(): any[] {
+  function buildTools(): Record<string, unknown>[] {
     if (!agentToolsetEnabled) return [];
 
     const configs = Object.entries(toolStates)
       .filter(([_, enabled]) => !enabled)
       .map(([name]) => ({ name, enabled: false }));
 
-    const tool: any = { type: 'agent_toolset_20260401' };
+    const tool: Record<string, unknown> = { type: 'agent_toolset_20260401' };
     if (configs.length > 0) {
       tool.configs = configs;
     }
@@ -355,8 +355,8 @@ Make small, reviewable changes. Never refactor and add features in the same step
 
       const agent = await res.json();
       await goto(`/agents/${agent.id}`);
-    } catch (err: any) {
-      error = err.message;
+    } catch (err: unknown) {
+      error = (err as Error).message;
     } finally {
       submitting = false;
     }
@@ -438,7 +438,7 @@ Make small, reviewable changes. Never refactor and add features in the same step
         </div>
         <div class="form-section__card">
           <div class="model-grid">
-            {#each models as m}
+            {#each models as m (m.value)}
               <button
                 type="button"
                 class="model-card"
@@ -515,7 +515,7 @@ Make small, reviewable changes. Never refactor and add features in the same step
 
           {#if agentToolsetEnabled}
             <div class="tool-chips">
-              {#each toolDefs as tool}
+              {#each toolDefs as tool (tool.key)}
                 <button
                   type="button"
                   class="chip"
@@ -567,7 +567,7 @@ Make small, reviewable changes. Never refactor and add features in the same step
       </div>
       <p class="templates__desc">Pre-configured agents for common tasks. Click to populate the form.</p>
       <div class="templates__list">
-        {#each presets as preset}
+        {#each presets as preset (preset.id)}
           <button
             type="button"
             class="tmpl"

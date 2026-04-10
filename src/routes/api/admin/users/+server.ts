@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { users, apiKeys, apiKeyShares, authSessions, userPreferences, agentBookmarks, envBookmarks, sessionBookmarks } from '$lib/server/db/schema';
+import { users } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 
 function requireAdmin(locals: App.Locals) {

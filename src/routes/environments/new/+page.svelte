@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { SvelteSet } from 'svelte/reactivity';
   import { apiFetch } from '$lib/utils/api';
 
   let name = $state('');
@@ -30,10 +31,10 @@
   ];
 
   // Only show expanded package fields that have content
-  let expandedPkgs = $state<Set<string>>(new Set(['pip', 'npm', 'apt']));
+  let expandedPkgs = new SvelteSet<string>(['pip', 'npm', 'apt']);
 
   function togglePkg(key: string) {
-    const next = new Set(expandedPkgs);
+    const next = new SvelteSet(expandedPkgs);
     if (next.has(key)) next.delete(key);
     else next.add(key);
     expandedPkgs = next;
@@ -88,8 +89,8 @@
         })
       });
       await goto(`/environments/${result.id}`);
-    } catch (e: any) {
-      error = e.message || 'Failed to create environment';
+    } catch (e: unknown) {
+      error = (e as Error).message || 'Failed to create environment';
     } finally {
       submitting = false;
     }
@@ -208,7 +209,7 @@
                 id="allowed-hosts"
                 class="field__textarea field__textarea--sm"
                 bind:value={allowedHosts}
-                placeholder={"api.example.com\ncdn.example.com\ndb.internal.io"}
+                placeholder="api.example.com&#10;cdn.example.com&#10;db.internal.io"
                 rows="4"
               ></textarea>
               <span class="field__hint">One hostname per line</span>
@@ -249,7 +250,7 @@
         </span>
 
         <div class="pkg-list">
-          {#each packageManagers as pm}
+          {#each packageManagers as pm (pm.key)}
             {#if expandedPkgs.has(pm.key)}
               <div class="pkg-row">
                 <label class="pkg-row__label" for="pkg-{pm.key}">
@@ -271,7 +272,7 @@
         <!-- Toggle for less common package managers -->
         {#if [...expandedPkgs].length < packageManagers.length}
           <div class="pkg-more">
-            {#each packageManagers.filter(p => !expandedPkgs.has(p.key)) as pm}
+            {#each packageManagers.filter(p => !expandedPkgs.has(p.key)) as pm (pm.key)}
               <button type="button" class="pkg-more__btn" onclick={() => togglePkg(pm.key)}>
                 + {pm.label}
               </button>

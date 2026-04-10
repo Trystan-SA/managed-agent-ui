@@ -1,14 +1,14 @@
 <script lang="ts">
   import CodeBlock from './CodeBlock.svelte';
 
-  let {
+  const {
     name,
     input,
     result,
     status = 'pending'
   }: {
     name: string;
-    input: any;
+    input: Record<string, unknown>;
     result?: string;
     status?: 'pending' | 'done' | 'error';
   } = $props();
@@ -26,7 +26,7 @@
     expanded = !expanded;
   }
 
-  function formatJson(obj: any): string {
+  function formatJson(obj: Record<string, unknown>): string {
     try {
       return JSON.stringify(obj, null, 2);
     } catch {

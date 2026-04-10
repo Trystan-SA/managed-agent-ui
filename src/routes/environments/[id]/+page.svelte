@@ -3,8 +3,8 @@
   import { formatDate } from '$lib/utils/format';
   import { apiFetch } from '$lib/utils/api';
 
-  let { data } = $props();
-  let env = $derived(data.environment);
+  const { data } = $props();
+  const env = $derived(data.environment);
 
   let archiving = $state(false);
   let deleting = $state(false);
@@ -27,8 +27,8 @@
         method: 'POST'
       });
       window.location.reload();
-    } catch (e: any) {
-      error = e.message || 'Failed to archive environment';
+    } catch (e: unknown) {
+      error = e instanceof Error ? e.message : 'Failed to archive environment';
     } finally {
       archiving = false;
       confirmArchive = false;
@@ -45,8 +45,8 @@
     try {
       await apiFetch(`/api/environments/${env.id}/delete`, { method: 'DELETE' });
       await goto('/environments');
-    } catch (e: any) {
-      error = e.message || 'Failed to delete environment';
+    } catch (e: unknown) {
+      error = e instanceof Error ? e.message : 'Failed to delete environment';
     } finally {
       deleting = false;
       confirmDelete = false;
@@ -119,7 +119,7 @@
           <span class="detail-row__label">Allowed Hosts</span>
           <span class="detail-row__value">
             <ul class="host-list">
-              {#each networking.allowed_hosts as host}
+              {#each networking.allowed_hosts as host, index (index)}
                 <li>{host}</li>
               {/each}
             </ul>
@@ -143,13 +143,13 @@
     <section class="detail-card">
       <h2 class="detail-card__title">Packages</h2>
 
-      {#each Object.entries(packages) as [manager, pkgs]}
+      {#each Object.entries(packages) as [manager, pkgs] (manager)}
         <div class="detail-row">
           <span class="detail-row__label">{manager}</span>
           <span class="detail-row__value">
             {#if Array.isArray(pkgs) && pkgs.length > 0}
               <div class="pkg-list">
-                {#each pkgs as pkg}
+                {#each pkgs as pkg, index (index)}
                   <span class="badge badge--sm badge--info">{pkg}</span>
                 {/each}
               </div>

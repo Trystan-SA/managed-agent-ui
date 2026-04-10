@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { content }: { content: string } = $props();
+  const { content }: { content: string } = $props();
 
   let expanded = $state(false);
 
