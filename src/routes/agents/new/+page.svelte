@@ -392,8 +392,8 @@ Make small, reviewable changes. Never refactor and add features in the same step
     {/if}
 
     {#if showConfirm}
-      <div class="confirm-backdrop" onclick={cancelApply} role="presentation">
-        <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog">
+      <div class="confirm-backdrop" onclick={cancelApply} onkeydown={(e) => e.key === 'Escape' && cancelApply()} role="presentation">
+        <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
           <p class="confirm-modal__text">
             Applying <strong>{pendingPreset?.label}</strong> will overwrite your current name and system prompt.
           </p>
@@ -873,7 +873,6 @@ Make small, reviewable changes. Never refactor and add features in the same step
     }
 
     &__input,
-    &__select,
     &__textarea {
       width: 100%;
       padding: var(--space-4) var(--space-5);

@@ -1,11 +1,21 @@
 <script lang="ts">
   import Badge from './Badge.svelte';
 
+  interface SessionEntry {
+    [key: string]: unknown;
+    id: string;
+    title?: string;
+    name?: string;
+    status?: string;
+    created_at?: string;
+    createdAt?: string;
+  }
+
   const {
     sessions,
     currentSessionId
   }: {
-    sessions: Record<string, unknown>[];
+    sessions: SessionEntry[];
     currentSessionId?: string;
   } = $props();
 

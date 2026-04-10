@@ -226,10 +226,10 @@
               <tr>
                 <td>{user.email}</td>
                 <td><span class="admin__badge admin__badge--{user.role}">{user.role}</span></td>
-                <td class="admin__meta">{formatDate(user.createdAt)}</td>
+                <td class="admin__meta">{formatDate(user.createdAt as string)}</td>
                 <td>
                   {#if user.role !== 'admin'}
-                    <button class="btn btn--danger btn--sm" onclick={() => deleteUser(user.id, user.email)}>Delete</button>
+                    <button class="btn btn--danger btn--sm" onclick={() => deleteUser(user.id as string, user.email as string)}>Delete</button>
                   {/if}
                 </td>
               </tr>
@@ -271,7 +271,7 @@
 
     {#if inviteResult?.inviteUrl && !inviteResult.emailSent}
       <div class="admin__invite-url">
-        <label class="form-label">Invite URL (share with user):</label>
+        <span class="form-label">Invite URL (share with user):</span>
         <code class="admin__url-code">{inviteResult.inviteUrl}</code>
       </div>
     {/if}
@@ -296,10 +296,10 @@
                 <td>
                   <span class="admin__badge admin__badge--{inv.status}">{inv.status}</span>
                 </td>
-                <td class="admin__meta">{formatDate(inv.createdAt)}</td>
+                <td class="admin__meta">{formatDate(inv.createdAt as string)}</td>
                 <td>
                   {#if inv.status === 'pending'}
-                    <button class="btn btn--danger btn--sm" onclick={() => revokeInvite(inv.id)}>Revoke</button>
+                    <button class="btn btn--danger btn--sm" onclick={() => revokeInvite(inv.id as string)}>Revoke</button>
                   {/if}
                 </td>
               </tr>

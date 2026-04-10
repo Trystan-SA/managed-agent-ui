@@ -126,8 +126,8 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label">Networking Mode</label>
-      <div class="radio-group">
+      <span class="form-label">Networking Mode</span>
+      <div class="radio-group" role="radiogroup" aria-label="Networking Mode">
         <label class="radio-option">
           <input type="radio" bind:group={networkingType} value="unrestricted" />
           <span>Unrestricted</span>
@@ -170,7 +170,7 @@
     {/if}
 
     <div class="form-group">
-      <label class="form-label">Packages</label>
+      <span class="form-label">Packages</span>
       <span class="form-hint">Comma-separated package names to pre-install</span>
     </div>
 

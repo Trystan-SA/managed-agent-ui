@@ -422,18 +422,18 @@
               {#each userList as user (user.id)}
                 <div class="um-user">
                   <div class="um-user__avatar">
-                    {user.email?.[0]?.toUpperCase() ?? '?'}
+                    {(user.email as string)?.[0]?.toUpperCase() ?? '?'}
                   </div>
                   <div class="um-user__info">
                     <span class="um-user__email">{user.email}</span>
-                    <span class="um-user__meta">Joined {formatDate(user.createdAt)}</span>
+                    <span class="um-user__meta">Joined {formatDate(user.createdAt as string)}</span>
                   </div>
                   <span class="role-badge" data-role={user.role}>{user.role}</span>
                   {#if user.role !== 'admin'}
                     <button
                       class="btn-icon btn-icon--danger"
                       title="Delete user"
-                      onclick={() => deleteUser(user.id, user.email)}
+                      onclick={() => deleteUser(user.id as string, user.email as string)}
                     >
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                         <path d="M3 4.5h10M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4M9.5 7v4M4.5 4.5l.5 8.5a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l.5-8.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
@@ -522,11 +522,11 @@
                 <div class="um-invite-row">
                   <div class="um-invite-row__info">
                     <span class="um-invite-row__email">{inv.email}</span>
-                    <span class="um-invite-row__meta">{formatDate(inv.createdAt)}</span>
+                    <span class="um-invite-row__meta">{formatDate(inv.createdAt as string)}</span>
                   </div>
                   <span class="status-badge" data-status={inv.status}>{inv.status}</span>
                   {#if inv.status === 'pending'}
-                    <button class="btn-text btn-text--danger" onclick={() => revokeInvite(inv.id)}>Revoke</button>
+                    <button class="btn-text btn-text--danger" onclick={() => revokeInvite(inv.id as string)}>Revoke</button>
                   {/if}
                 </div>
               {/each}

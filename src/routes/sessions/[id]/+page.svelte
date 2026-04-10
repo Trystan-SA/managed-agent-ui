@@ -14,7 +14,7 @@
     [key: string]: unknown;
   }
 
-  const session: SessionDetail = data.session;
+  const session = data.session as unknown as SessionDetail;
   const events: Record<string, unknown>[] = data.events;
 
   function formatDate(dateStr: string): string {

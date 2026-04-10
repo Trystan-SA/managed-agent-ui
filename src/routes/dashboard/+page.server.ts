@@ -1,15 +1,13 @@
 import type { PageServerLoad } from './$types';
 import { createAnthropicClient } from '$lib/server/anthropic';
 
-interface ApiItem { status?: string; [key: string]: unknown; }
-
 export const load: PageServerLoad = async () => {
   try {
     const client = await createAnthropicClient();
 
-    const agents: ApiItem[] = [];
-    const environments: ApiItem[] = [];
-    const sessions: ApiItem[] = [];
+    const agents = [];
+    const environments = [];
+    const sessions = [];
     let activeSessions = 0;
 
     for await (const a of client.beta.agents.list()) agents.push(a);

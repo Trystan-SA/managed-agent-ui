@@ -48,7 +48,7 @@
             </td>
             <td>
               <span class="badge badge--info">
-                {env.config?.networking?.type ?? 'unrestricted'}
+                {((env.config as Record<string, unknown>)?.networking as Record<string, unknown>)?.type ?? 'unrestricted'}
               </span>
             </td>
             <td>
@@ -58,7 +58,7 @@
                 <span class="badge badge--idle">Active</span>
               {/if}
             </td>
-            <td>{formatDate(env.created_at)}</td>
+            <td>{formatDate(env.created_at as string)}</td>
           </tr>
         {/each}
       </tbody>

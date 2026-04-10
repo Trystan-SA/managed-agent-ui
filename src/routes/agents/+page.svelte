@@ -108,7 +108,7 @@
             {#if toolCount > 0}
               <span class="agent-card__tools">{toolCount} tools</span>
             {/if}
-            <span class="agent-card__date">{formatDate(agent.created_at)}</span>
+            <span class="agent-card__date">{formatDate(agent.created_at as string)}</span>
           </div>
         </a>
       {/each}
@@ -138,7 +138,7 @@
                 </div>
                 <div class="agent-card__footer">
                   <span class="agent-card__model" data-tier={getModelTier(mid)}>{getModelLabel(mid)}</span>
-                  <span class="agent-card__date">{formatDate(agent.created_at)}</span>
+                  <span class="agent-card__date">{formatDate(agent.created_at as string)}</span>
                 </div>
               </a>
             {/each}

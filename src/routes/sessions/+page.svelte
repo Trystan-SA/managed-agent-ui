@@ -4,8 +4,6 @@
 
   const { data } = $props();
 
-  interface SessionItem { id: string; status?: string; title?: string; name?: string; agent_id?: string; created_at: string; [key: string]: unknown; }
-
   let confirmAction = $state<{ type: 'archive' | 'delete'; id: string } | null>(null);
 
   function formatDate(dateStr: string): string {
@@ -42,8 +40,8 @@
     window.location.reload();
   }
 
-  const runningSessions = $derived(data.sessions.filter((s: SessionItem) => s.status === 'running'));
-  const otherSessions = $derived(data.sessions.filter((s: SessionItem) => s.status !== 'running'));
+  const runningSessions = $derived(data.sessions.filter((s: Record<string, unknown>) => s.status === 'running'));
+  const otherSessions = $derived(data.sessions.filter((s: Record<string, unknown>) => s.status !== 'running'));
 </script>
 
 <svelte:head>
@@ -52,7 +50,7 @@
 
 {#if confirmAction}
   <div class="confirm-backdrop" onclick={() => (confirmAction = null)} role="presentation">
-    <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog">
+    <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1" onkeydown={(e) => e.key === 'Escape' && (confirmAction = null)}>
       <p class="confirm-modal__text">
         {confirmAction.type === 'delete'
           ? 'Delete this session? This action cannot be undone.'
@@ -106,12 +104,12 @@
               <span class="session-card__title">{session.title ?? session.name ?? 'Untitled'}</span>
               <span class="status-dot" data-status="running"></span>
             </div>
-            <code class="session-card__id">{session.id.slice(0, 16)}</code>
+            <code class="session-card__id">{(session.id as string).slice(0, 16)}</code>
             <div class="session-card__footer">
               {#if session.agent_id}
-                <span class="session-card__agent">Agent {session.agent_id.slice(0, 8)}</span>
+                <span class="session-card__agent">Agent {(session.agent_id as string)?.slice(0, 8)}</span>
               {/if}
-              <span class="session-card__date">{formatDate(session.created_at)} {formatTime(session.created_at)}</span>
+              <span class="session-card__date">{formatDate(session.created_at as string)} {formatTime(session.created_at as string)}</span>
             </div>
           </a>
         {/each}
@@ -128,15 +126,15 @@
           <div class="session-row">
             <a href="/sessions/{session.id}" class="session-row__main">
               <div class="session-row__left">
-                <span class="status-dot" data-status={getStatusColor(session.status ?? 'unknown')}></span>
+                <span class="status-dot" data-status={getStatusColor((session.status as string) ?? 'unknown')}></span>
                 <div class="session-row__info">
                   <span class="session-row__title">{session.title ?? session.name ?? 'Untitled'}</span>
-                  <code class="session-row__id">{session.id.slice(0, 16)}</code>
+                  <code class="session-row__id">{(session.id as string).slice(0, 16)}</code>
                 </div>
               </div>
               <div class="session-row__right">
                 <span class="session-row__status" data-status={session.status}>{session.status ?? 'unknown'}</span>
-                <span class="session-row__date">{formatDate(session.created_at)}</span>
+                <span class="session-row__date">{formatDate(session.created_at as string)}</span>
               </div>
             </a>
             <div class="session-row__actions">
@@ -147,12 +145,12 @@
                   </svg>
                 </a>
               {/if}
-              <button class="action-btn" title="Archive" onclick={() => (confirmAction = { type: 'archive', id: session.id })}>
+              <button class="action-btn" title="Archive" onclick={() => (confirmAction = { type: 'archive', id: session.id as string })}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M2 4h12M4 4v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4M6 2h4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
-              <button class="action-btn action-btn--danger" title="Delete" onclick={() => (confirmAction = { type: 'delete', id: session.id })}>
+              <button class="action-btn action-btn--danger" title="Delete" onclick={() => (confirmAction = { type: 'delete', id: session.id as string })}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                 </svg>

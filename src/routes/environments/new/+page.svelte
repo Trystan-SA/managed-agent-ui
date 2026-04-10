@@ -31,13 +31,11 @@
   ];
 
   // Only show expanded package fields that have content
-  let expandedPkgs = new SvelteSet<string>(['pip', 'npm', 'apt']);
+  const expandedPkgs = new SvelteSet<string>(['pip', 'npm', 'apt']);
 
   function togglePkg(key: string) {
-    const next = new SvelteSet(expandedPkgs);
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    expandedPkgs = next;
+    if (expandedPkgs.has(key)) expandedPkgs.delete(key);
+    else expandedPkgs.add(key);
   }
 
   function parseList(value: string): string[] {

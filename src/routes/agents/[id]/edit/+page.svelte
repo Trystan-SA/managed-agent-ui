@@ -5,7 +5,7 @@
   let name = $state((agent.name as string) ?? '');
   let model = $state(typeof agent.model === 'string' ? agent.model : (agent.model as Record<string, unknown>)?.id as string ?? 'claude-sonnet-4-6');
   let systemPrompt = $state((agent.description ?? agent.system ?? '') as string);
-  let currentVersion = (agent.version as number) ?? 1;
+  let currentVersion = $state((agent.version as number) ?? 1);
   let agentToolsetEnabled = $state(false);
   const toolStates = $state({
     bash: true,
@@ -139,7 +139,7 @@
       <span class="version-pill">v{currentVersion}</span>
     </div>
     <p class="edit-agent__subtitle">
-      Saving creates version {currentVersion + 1} &middot; Created {formatDate(agent.created_at)}
+      Saving creates version {currentVersion + 1} &middot; Created {formatDate(agent.created_at as string)}
     </p>
   </div>
 

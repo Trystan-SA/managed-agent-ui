@@ -107,9 +107,9 @@
     </div>
 
     <p class="agent-detail__meta">
-      Created {formatDate(agent.created_at)}
+      Created {formatDate(agent.created_at as string)}
       {#if agent.updated_at && agent.updated_at !== agent.created_at}
-        &middot; Updated {formatDate(agent.updated_at)}
+        &middot; Updated {formatDate(agent.updated_at as string)}
       {/if}
     </p>
   </div>
@@ -136,8 +136,8 @@
   {/if}
 
   {#if showArchiveConfirm}
-    <div class="confirm-backdrop" onclick={() => (showArchiveConfirm = false)} role="presentation">
-      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog">
+    <div class="confirm-backdrop" onclick={() => (showArchiveConfirm = false)} onkeydown={(e) => e.key === 'Escape' && (showArchiveConfirm = false)} role="presentation">
+      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
         <p class="confirm-modal__text">
           Archive <strong>{agent.name}</strong>? This cannot be undone. The agent will no longer be usable in new sessions.
         </p>
@@ -226,7 +226,7 @@
                 {#if i === 0}
                   <span class="pill pill--version" style="font-size: 10px;">Current</span>
                 {/if}
-                <span class="version-row__date">{formatDate(ver.updated_at ?? ver.created_at)}</span>
+                <span class="version-row__date">{formatDate((ver.updated_at ?? ver.created_at) as string)}</span>
               </div>
               {#if verDesc}
                 <p class="version-row__prompt">{truncate(verDesc, 120)}</p>

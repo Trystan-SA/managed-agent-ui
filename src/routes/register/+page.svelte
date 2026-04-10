@@ -514,39 +514,6 @@
     }
   }
 
-  /* --- Security info card --- */
-
-  .reg__info-card {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 16px;
-    background: var(--surface-1);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    width: 100%;
-  }
-
-  .reg__info-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: var(--accent-primary-muted);
-    border: 1px solid rgba(99, 102, 241, 0.1);
-    border-radius: var(--radius-md);
-    color: var(--accent-primary);
-    flex-shrink: 0;
-  }
-
-  .reg__info-text {
-    font-size: var(--text-xs);
-    line-height: var(--leading-relaxed);
-    color: var(--text-muted);
-  }
-
   /* --- Right form panel --- */
 
   .reg__form-panel {
@@ -658,58 +625,11 @@
       background: var(--surface-1);
     }
 
-    &--key {
-      font-family: var(--font-mono);
-      font-size: var(--text-sm);
-      letter-spacing: 0.01em;
-      padding-right: 48px;
-    }
-  }
-
-  .reg__input-group {
-    position: relative;
-  }
-
-  .reg__toggle {
-    position: absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: none;
-    border: none;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    color: var(--text-muted);
-    transition: color var(--transition-fast), background var(--transition-fast);
-
-    &:hover {
-      color: var(--text-secondary);
-      background: var(--surface-2);
-    }
   }
 
   .reg__hint {
     font-size: var(--text-xs);
     color: var(--text-muted);
-
-    a {
-      color: var(--accent-primary);
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 2px;
-      transition: color var(--transition-fast), gap var(--transition-fast);
-
-      &:hover {
-        color: var(--accent-primary-hover);
-        gap: 4px;
-      }
-    }
   }
 
   /* --- Error --- */
@@ -854,10 +774,6 @@
       width: 32px;
       height: 1px;
       margin-left: 0;
-    }
-
-    .reg__info-card {
-      display: none;
     }
 
     .reg__form-panel {

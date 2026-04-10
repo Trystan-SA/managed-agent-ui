@@ -12,12 +12,22 @@
   interface ContentBlock { type: string; [key: string]: unknown; }
 
   // --- Session list for sidebar ---
-  let sessions: Record<string, unknown>[] = $state([]);
+  interface SessionEntry {
+    [key: string]: unknown;
+    id: string;
+    title?: string;
+    name?: string;
+    status?: string;
+    created_at?: string;
+    createdAt?: string;
+  }
+
+  let sessions: SessionEntry[] = $state([]);
 
   async function loadSessions() {
     try {
       const result = await apiFetch<Record<string, unknown>>('/api/sessions');
-      sessions = Array.isArray(result) ? result : (result.data as Record<string, unknown>[]) ?? [];
+      sessions = Array.isArray(result) ? result as SessionEntry[] : (result.data as SessionEntry[]) ?? [];
     } catch {
       sessions = [];
     }
@@ -66,7 +76,7 @@
   const isRunning = $derived(status === 'running');
   const sessionId = $derived($page.params.sessionId);
   const sessionTitle = $derived(
-    data.session?.title ?? data.session?.name ?? `Session ${sessionId.slice(0, 8)}...`
+    data.session?.title ?? (data.session as unknown as Record<string, unknown>)?.name ?? `Session ${sessionId?.slice(0, 8) ?? '...'}...`
   );
 
   // --- SSE Streaming ---

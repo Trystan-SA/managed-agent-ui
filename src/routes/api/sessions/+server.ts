@@ -4,7 +4,7 @@ import { createAnthropicClient } from '$lib/server/anthropic';
 
 export const GET: RequestHandler = async ({ locals: _locals }) => {
   const client = await createAnthropicClient();
-  const sessions: Record<string, unknown>[] = [];
+  const sessions = [];
   for await (const session of client.beta.sessions.list()) {
     sessions.push(session);
   }
