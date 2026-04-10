@@ -90,25 +90,28 @@ drizzle/                 # Database migrations
 
 ### API Routes
 - Each domain gets its own folder under `src/routes/api/`
-- Auth check via `requireAuth()` helper in every protected route
-- Anthropic client created per-request via `createAnthropicClient(userId)`
+- Auth check via `requireAuth()` helper in every protected route; admin routes check `locals.userRole === 'admin'`
+- Anthropic client created per-request via `createAnthropicClient()` using the global API key
 - SSE streaming proxied through `ReadableStream`
 
 ### Authentication
-- One-time setup via `/register` (disabled after first user)
-- In-memory session store (acceptable for single-user)
+- One-time admin setup via `/register` (disabled after first user)
+- Additional users onboarded via admin invite system
+- Database-backed session store (`auth_sessions` table)
 - Session cookies: HTTP-only, secure, SameSite=Lax, 7-day max age
+- Two roles: `admin` (first user) and `member` (invited users)
 
 ## Domain Map
 
 | Domain | API Routes | Pages | Key Files |
 |--------|-----------|-------|-----------|
-| Auth | `/api/auth/*` | `/login`, `/register` | `auth.ts`, `crypto.ts`, `hooks.server.ts` |
+| Auth | `/api/auth/*` | `/login`, `/register`, `/invite/[token]` | `auth.ts`, `crypto.ts`, `email.ts`, `hooks.server.ts` |
+| Admin | `/api/admin/*` | `/settings/admin` | User/invite/SMTP management |
 | Agents | `/api/agents/*` | `/agents/*` | Agent CRUD + versioning |
 | Environments | `/api/environments/*` | `/environments/*` | Env CRUD + networking/packages |
 | Sessions | `/api/sessions/*` | `/sessions/*` | Session lifecycle + status |
 | Chat | `/api/sessions/[id]/events`, `/api/sessions/[id]/stream` | `/chat/*` | SSE streaming, event handling |
-| Settings | `/api/settings/*` | `/settings` | API key management, preferences |
+| Settings | `/api/settings/*` | `/settings`, `/settings/reset-password` | Global API key (admin), preferences, password reset |
 | Dashboard | — | `/dashboard` | Aggregation of agent/env/session counts |
 
 ## Specifications
@@ -120,6 +123,12 @@ Domain specs live in `/spec/` with `X.X.X` chapter numbering. See `/spec/README.
 1. **Proxy all API calls** — API keys stay server-side. No client-side SDK usage.
 2. **Bookmarks over caching** — Local DB enhances (nicknames, pins) rather than duplicates Anthropic state.
 3. **SSE over WebSocket** — Simpler, unidirectional streaming fits the agent response model. User actions go through REST.
-4. **Single-user architecture** — In-memory sessions, no Redis, no multi-tenancy complexity. One Docker instance per user.
+4. **Multi-user with global API key** — Admin sets one Anthropic key shared by all users. DB-backed sessions. Role-based access (admin/member).
 5. **SCSS over CSS-in-JS** — Design tokens as CSS custom properties, component-scoped imports, no runtime cost.
 6. **Drizzle over Prisma** — Lighter, closer to SQL, better TypeScript inference for this scale.
+
+## Git Workflow
+
+- **Always create a PR** when introducing changes — target the `develop` branch.
+- PR titles follow: `feat|fix|improve|chore(domain): message` (e.g., `feat(auth): add invite flow`, `fix(chat): resolve SSE reconnect`, `improve(agents): add empty state`).
+- When asked to commit, stage changes, commit, push to a feature branch, and open a PR to `develop` automatically.
