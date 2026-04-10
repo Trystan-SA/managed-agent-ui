@@ -1,13 +1,13 @@
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 import type { Cookies } from '@sveltejs/kit';
+import { db } from './db';
+import { authSessions } from './db/schema';
+import { eq, lt } from 'drizzle-orm';
 
 const SALT_ROUNDS = 12;
 const SESSION_COOKIE = 'session_id';
-const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
-
-// In-memory session store. For production, move to Redis or DB.
-const sessions = new Map<string, { userId: string; expiresAt: number }>();
+const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days in seconds
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -17,11 +17,13 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
   return bcrypt.compare(password, hash);
 }
 
-export function createSession(cookies: Cookies, userId: string): void {
-  const sessionId = randomUUID();
-  const expiresAt = Date.now() + SESSION_MAX_AGE * 1000;
-  sessions.set(sessionId, { userId, expiresAt });
-  cookies.set(SESSION_COOKIE, sessionId, {
+export async function createSession(cookies: Cookies, userId: string): Promise<void> {
+  const token = randomUUID();
+  const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000);
+
+  await db.insert(authSessions).values({ userId, token, expiresAt });
+
+  cookies.set(SESSION_COOKIE, token, {
     path: '/',
     httpOnly: true,
     sameSite: 'lax',
@@ -30,20 +32,27 @@ export function createSession(cookies: Cookies, userId: string): void {
   });
 }
 
-export function getUserIdFromSession(cookies: Cookies): string | null {
-  const sessionId = cookies.get(SESSION_COOKIE);
-  if (!sessionId) return null;
-  const session = sessions.get(sessionId);
+export async function getUserIdFromSession(cookies: Cookies): Promise<string | null> {
+  const token = cookies.get(SESSION_COOKIE);
+  if (!token) return null;
+
+  // Piggyback cleanup: delete expired rows
+  await db.delete(authSessions).where(lt(authSessions.expiresAt, new Date()));
+
+  const [session] = await db
+    .select({ userId: authSessions.userId })
+    .from(authSessions)
+    .where(eq(authSessions.token, token))
+    .limit(1);
+
   if (!session) return null;
-  if (Date.now() > session.expiresAt) {
-    sessions.delete(sessionId);
-    return null;
-  }
   return session.userId;
 }
 
-export function destroySession(cookies: Cookies): void {
-  const sessionId = cookies.get(SESSION_COOKIE);
-  if (sessionId) sessions.delete(sessionId);
+export async function destroySession(cookies: Cookies): Promise<void> {
+  const token = cookies.get(SESSION_COOKIE);
+  if (token) {
+    await db.delete(authSessions).where(eq(authSessions.token, token));
+  }
   cookies.delete(SESSION_COOKIE, { path: '/' });
 }

@@ -43,9 +43,9 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
   const passwordHash = await hashPassword(password);
 
   try {
-    const [user] = await db.insert(users).values({ email, password: passwordHash }).returning();
+    const [user] = await db.insert(users).values({ email, password: passwordHash, role: 'admin' }).returning();
     await db.insert(userPreferences).values({ userId: user.id });
-    createSession(cookies, user.id);
+    await createSession(cookies, user.id);
     markSetupComplete();
     return json({ success: true });
   } catch (e: any) {
