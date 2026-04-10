@@ -1,5 +1,7 @@
 <script lang="ts">
   import { formatDate } from '$lib/utils/format';
+  import EmptyState from '$components/EmptyState.svelte';
+  import iconEnvs from '$lib/assets/icons/empty-environments.svg';
 
   let { data } = $props();
 </script>
@@ -15,15 +17,13 @@
 </div>
 
 {#if data.environments.length === 0}
-  <div class="table-wrap">
-    <div class="table-empty">
-      <div class="table-empty__icon">&#x1f4e6;</div>
-      <div class="table-empty__title">No environments yet</div>
-      <div class="table-empty__description">
-        Create an environment to provide a sandboxed runtime for your agents.
-      </div>
-    </div>
-  </div>
+  <EmptyState
+    icon={iconEnvs}
+    title="No environments yet."
+    description="Create a sandboxed runtime for your agents."
+    actionHref="/environments/new"
+    actionLabel="Create environment"
+  />
 {:else}
   <div class="table-wrap">
     <table class="table">

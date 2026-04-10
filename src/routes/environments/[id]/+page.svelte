@@ -23,7 +23,9 @@
     archiving = true;
     error = '';
     try {
-      await apiFetch(`/api/environments/${env.id}/archive`, { method: 'POST' });
+      await apiFetch(`/api/environments/${env.id}/archive`, {
+        method: 'POST'
+      });
       window.location.reload();
     } catch (e: any) {
       error = e.message || 'Failed to archive environment';

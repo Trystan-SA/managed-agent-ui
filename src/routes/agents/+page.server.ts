@@ -1,8 +1,16 @@
 import type { PageServerLoad } from './$types';
 import { createAnthropicClient } from '$lib/server/anthropic';
 
-export const load: PageServerLoad = async ({ locals }) => {
-  const client = await createAnthropicClient(locals.userId!);
-  const result = await client.beta.agents.list();
-  return { agents: result.data ?? [] };
+export const load: PageServerLoad = async () => {
+  try {
+    const client = await createAnthropicClient();
+    const agents: any[] = [];
+    for await (const agent of client.beta.agents.list()) {
+      agents.push(JSON.parse(JSON.stringify(agent)));
+    }
+    return { agents };
+  } catch (e) {
+    console.error('[agents/list]', e);
+    return { agents: [] };
+  }
 };

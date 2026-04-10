@@ -14,7 +14,7 @@
   async function loadSessions() {
     try {
       const result = await apiFetch<any>('/api/sessions');
-      sessions = result.data ?? result ?? [];
+      sessions = Array.isArray(result) ? result : result.data ?? [];
     } catch {
       sessions = [];
     }

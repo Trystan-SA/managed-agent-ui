@@ -2,15 +2,18 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createAnthropicClient } from '$lib/server/anthropic';
 
-export const GET: RequestHandler = async ({ locals }) => {
-  const client = await createAnthropicClient(locals.userId!);
-  const environments = await client.beta.environments.list();
+export const GET: RequestHandler = async () => {
+  const client = await createAnthropicClient();
+  const environments: any[] = [];
+  for await (const env of client.beta.environments.list()) {
+    environments.push(env);
+  }
   return json(environments);
 };
 
-export const POST: RequestHandler = async ({ request, locals }) => {
-  const client = await createAnthropicClient(locals.userId!);
+export const POST: RequestHandler = async ({ request }) => {
   const body = await request.json();
+  const client = await createAnthropicClient();
   const environment = await client.beta.environments.create(body);
   return json(environment, { status: 201 });
 };

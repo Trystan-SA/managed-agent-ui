@@ -3,6 +3,6 @@ import { createAnthropicClient } from '$lib/server/anthropic';
 
 export const load: PageServerLoad = async ({ params }) => {
   const client = await createAnthropicClient();
-  const session = await client.beta.sessions.retrieve(params.sessionId);
-  return { session: JSON.parse(JSON.stringify(session)) };
+  const agent = await client.beta.agents.retrieve(params.id);
+  return { agent: JSON.parse(JSON.stringify(agent)) };
 };
