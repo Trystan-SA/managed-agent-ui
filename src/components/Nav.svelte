@@ -6,6 +6,7 @@
     { href: '/agents', label: 'Agents' },
     { href: '/environments', label: 'Environments' },
     { href: '/sessions', label: 'Sessions' },
+    { href: '/scheduled-tasks', label: 'Scheduled' },
     { href: '/chat', label: 'Chat' }
   ];
 

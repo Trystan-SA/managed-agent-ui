@@ -3,6 +3,10 @@ import { getUserIdFromSession } from '$lib/server/auth';
 import { db } from '$lib/server/db';
 import { users } from '$lib/server/db/schema';
 import { count, eq } from 'drizzle-orm';
+import { initScheduler } from '$lib/server/scheduler';
+
+// Initialize the scheduler (runs once on first import)
+initScheduler().catch(err => console.error('[scheduler] Init failed:', err));
 
 let setupComplete: boolean | null = null;
 
