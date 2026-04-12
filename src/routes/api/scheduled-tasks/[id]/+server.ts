@@ -17,6 +17,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
   if (!task) return json({ error: 'Not found' }, { status: 404 });
 
+  if (task.createdBy !== locals.userId && locals.userRole !== 'admin') {
+    return json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   return json(task);
 };
 
@@ -30,6 +34,10 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
     .limit(1);
 
   if (!existing) return json({ error: 'Not found' }, { status: 404 });
+
+  if (existing.createdBy !== locals.userId && locals.userRole !== 'admin') {
+    return json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const body = await request.json() as {
     agentId?: string;
@@ -131,12 +139,16 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
   if (!locals.userId) return json({ error: 'Unauthorized' }, { status: 401 });
 
   const [existing] = await db
-    .select({ id: scheduledTasks.id })
+    .select({ id: scheduledTasks.id, createdBy: scheduledTasks.createdBy })
     .from(scheduledTasks)
     .where(eq(scheduledTasks.id, params.id))
     .limit(1);
 
   if (!existing) return json({ error: 'Not found' }, { status: 404 });
+
+  if (existing.createdBy !== locals.userId && locals.userRole !== 'admin') {
+    return json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   removeTask(params.id);
 

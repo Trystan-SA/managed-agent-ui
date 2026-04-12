@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { scheduledTasks } from '$lib/server/db/schema';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { buildCronExpression } from '$lib/schedule-presets';
 import { addTask, computeNextRun } from '$lib/server/scheduler';
 
@@ -11,8 +11,15 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 
   const agentId = url.searchParams.get('agentId');
 
-  const tasks = agentId
-    ? await db.select().from(scheduledTasks).where(eq(scheduledTasks.agentId, agentId)).orderBy(desc(scheduledTasks.createdAt))
+  // Admins see all tasks; members only see their own
+  const ownerFilter = locals.userRole === 'admin'
+    ? undefined
+    : eq(scheduledTasks.createdBy, locals.userId);
+
+  const conditions = [ownerFilter, agentId ? eq(scheduledTasks.agentId, agentId) : undefined].filter(Boolean);
+
+  const tasks = conditions.length > 0
+    ? await db.select().from(scheduledTasks).where(and(...conditions)).orderBy(desc(scheduledTasks.createdAt))
     : await db.select().from(scheduledTasks).orderBy(desc(scheduledTasks.createdAt));
 
   return json(tasks);

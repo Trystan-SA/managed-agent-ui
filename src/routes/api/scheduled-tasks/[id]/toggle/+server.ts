@@ -11,13 +11,23 @@ export const POST: RequestHandler = async ({ params, locals }) => {
   }
 
   const [task] = await db
-    .select()
+    .select({
+      id: scheduledTasks.id,
+      enabled: scheduledTasks.enabled,
+      cronExpression: scheduledTasks.cronExpression,
+      timezone: scheduledTasks.timezone,
+      createdBy: scheduledTasks.createdBy
+    })
     .from(scheduledTasks)
     .where(eq(scheduledTasks.id, params.id))
     .limit(1);
 
   if (!task) {
     return json({ error: 'Task not found' }, { status: 404 });
+  }
+
+  if (task.createdBy !== locals.userId && locals.userRole !== 'admin') {
+    return json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const newEnabled = !task.enabled;

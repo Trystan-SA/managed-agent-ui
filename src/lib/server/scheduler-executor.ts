@@ -3,6 +3,7 @@ import { scheduledTasks, taskExecutions } from './db/schema';
 import { eq, isNull, and } from 'drizzle-orm';
 import { createAnthropicClient } from './anthropic';
 import { renderTemplate } from './template';
+import { computeNextRun } from './scheduler';
 import type { BetaManagedAgentsStreamSessionEvents } from '@anthropic-ai/sdk/resources/beta/sessions/events.js';
 
 export async function executeTask(taskId: string): Promise<void> {
@@ -103,7 +104,7 @@ export async function executeTask(taskId: string): Promise<void> {
       const e = event as BetaManagedAgentsStreamSessionEvents;
       if (e.type === 'agent.message') {
         for (const block of e.content) {
-          responseText += block.text;
+          if ('text' in block) responseText += block.text;
         }
       }
       if (e.type === 'session.status_idle' || e.type === 'session.status_terminated') {
@@ -126,12 +127,13 @@ export async function executeTask(taskId: string): Promise<void> {
       })
       .where(eq(taskExecutions.id, executionId));
 
-    // Update task metadata
+    // Update task metadata and compute next run time
     await db
       .update(scheduledTasks)
       .set({
         lastRunAt: startedAt,
         runCount: task.runCount + 1,
+        nextRunAt: computeNextRun(task.cronExpression, task.timezone),
         activeSessionId: task.sessionMode === 'continue_session' ? sessionId : null,
         lockedAt: null,
         updatedAt: new Date()

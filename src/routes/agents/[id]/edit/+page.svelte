@@ -194,10 +194,14 @@
       // Sync schedules: delete removed, update existing, create new
       const currentIds = new Set(schedules.filter(s => s.id).map(s => s.id as string));
       const deletedIds = [...originalScheduleIds].filter(id => !currentIds.has(id));
+      const scheduleErrors: string[] = [];
 
       // Delete removed schedules
       for (const id of deletedIds) {
-        await fetch(`/api/scheduled-tasks/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/scheduled-tasks/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          scheduleErrors.push(`Failed to delete schedule ${id}`);
+        }
       }
 
       // Update existing and create new
@@ -216,18 +220,28 @@
         };
 
         if (sched.id) {
-          await fetch(`/api/scheduled-tasks/${sched.id}`, {
+          const res = await fetch(`/api/scheduled-tasks/${sched.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
+          if (!res.ok) {
+            scheduleErrors.push(`Failed to update schedule ${sched.id}`);
+          }
         } else {
-          await fetch('/api/scheduled-tasks', {
+          const res = await fetch('/api/scheduled-tasks', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
+          if (!res.ok) {
+            scheduleErrors.push('Failed to create a new schedule');
+          }
         }
+      }
+
+      if (scheduleErrors.length > 0) {
+        error = `Agent saved, but some schedule changes failed: ${scheduleErrors.join('; ')}`;
       }
 
       saved = true;

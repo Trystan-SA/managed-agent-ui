@@ -1,11 +1,15 @@
 import cron, { type ScheduledTask } from 'node-cron';
+import { CronExpressionParser } from 'cron-parser';
 import { db } from './db';
 import { scheduledTasks } from './db/schema';
-import { eq, isNotNull } from 'drizzle-orm';
+import { eq, lt } from 'drizzle-orm';
 import { executeTask } from './scheduler-executor';
 
 const jobs = new Map<string, ScheduledTask>();
 let initialized = false;
+
+/** Max expected task duration — locks older than this are considered stale */
+const STALE_LOCK_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
 export async function initScheduler(): Promise<void> {
   if (initialized) return;
@@ -13,11 +17,12 @@ export async function initScheduler(): Promise<void> {
 
   console.log('[scheduler] Initializing...');
 
-  // Clear any stale locks (from previous crash)
+  // Clear only stale locks (older than threshold, likely from a crash)
+  const staleThreshold = new Date(Date.now() - STALE_LOCK_THRESHOLD_MS);
   await db
     .update(scheduledTasks)
     .set({ lockedAt: null })
-    .where(isNotNull(scheduledTasks.lockedAt));
+    .where(lt(scheduledTasks.lockedAt, staleThreshold));
 
   // Load all enabled tasks
   const tasks = await db
@@ -100,71 +105,17 @@ process.on('SIGINT', stopScheduler);
 
 /**
  * Compute the next run time for a cron expression in a given timezone.
+ * Uses cron-parser for correct timezone-aware calculation.
  */
 export function computeNextRun(cronExpression: string, timezone: string): Date {
-  const now = new Date();
-  const parts = cronExpression.split(' ');
-  if (parts.length !== 5) return new Date(now.getTime() + 60000);
-
-  const [minute, hour, dayOfMonth, , dayOfWeek] = parts;
-
-  // Convert current time to target timezone for comparison
-  const tzNow = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-
-  const next = new Date(now);
-
-  if (minute.startsWith('*/')) {
-    const interval = parseInt(minute.slice(2)) * 60 * 1000;
-    return new Date(now.getTime() + interval);
+  try {
+    const interval = CronExpressionParser.parse(cronExpression, {
+      tz: timezone,
+      currentDate: new Date()
+    });
+    return interval.next().toDate();
+  } catch {
+    // Fallback: 1 minute from now if expression is invalid
+    return new Date(Date.now() + 60000);
   }
-
-  if (hour.startsWith('*/')) {
-    const interval = parseInt(hour.slice(2)) * 60 * 60 * 1000;
-    return new Date(now.getTime() + interval);
-  }
-
-  const targetMinute = minute === '*' ? tzNow.getMinutes() : parseInt(minute);
-  const targetHour = hour === '*' ? tzNow.getHours() : parseInt(hour);
-
-  next.setSeconds(0, 0);
-
-  if (hour !== '*') {
-    next.setHours(targetHour, targetMinute, 0, 0);
-  } else {
-    next.setMinutes(targetMinute, 0, 0);
-    if (next <= now) next.setHours(next.getHours() + 1);
-  }
-
-  if (next <= now) {
-    next.setDate(next.getDate() + 1);
-  }
-
-  // Handle day-of-week constraints
-  if (dayOfWeek !== '*') {
-    const targetDays = dayOfWeek.includes('-')
-      ? expandRange(dayOfWeek)
-      : [parseInt(dayOfWeek)];
-
-    while (!targetDays.includes(next.getDay())) {
-      next.setDate(next.getDate() + 1);
-    }
-  }
-
-  // Handle day-of-month constraints
-  if (dayOfMonth !== '*') {
-    const targetDay = parseInt(dayOfMonth);
-    next.setDate(targetDay);
-    if (next <= now) {
-      next.setMonth(next.getMonth() + 1);
-    }
-  }
-
-  return next;
-}
-
-function expandRange(range: string): number[] {
-  const [start, end] = range.split('-').map(Number);
-  const result: number[] = [];
-  for (let i = start; i <= end; i++) result.push(i);
-  return result;
 }
