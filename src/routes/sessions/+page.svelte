@@ -1,6 +1,6 @@
 <script lang="ts">
   import EmptyState from '$components/EmptyState.svelte';
-  import iconSessions from '$lib/assets/icons/empty-sessions.svg';
+  import iconSessions from '$lib/assets/icons/empty-sessions.svg?raw';
 
   const { data } = $props();
 

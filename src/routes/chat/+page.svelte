@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { apiFetch } from '$lib/utils/api';
   import EmptyState from '$components/EmptyState.svelte';
-  import iconIdle from '$lib/assets/icons/empty-idle.svg';
+  import iconIdle from '$lib/assets/icons/empty-idle.svg?raw';
 
   interface Agent {
     id: string;
