@@ -36,8 +36,7 @@ export async function executeTask(taskId: string): Promise<void> {
     // Render prompt
     const prompt = renderTemplate(task.promptTemplate, {
       timezone: task.timezone,
-      runNumber: task.runCount + 1,
-      taskName: task.name
+      runNumber: task.runCount + 1
     });
 
     // Insert execution record
@@ -61,26 +60,23 @@ export async function executeTask(taskId: string): Promise<void> {
       try {
         const existing = await client.beta.sessions.retrieve(task.activeSessionId);
         if (existing.status === 'terminated') {
-          const session = await client.beta.sessions.create({
-            agent: task.agentId,
-            environment_id: task.environmentId
-          });
+          const session = await client.beta.sessions.create(
+            { agent: task.agentId } as Parameters<typeof client.beta.sessions.create>[0]
+          );
           sessionId = session.id;
         } else {
           sessionId = task.activeSessionId;
         }
       } catch {
-        const session = await client.beta.sessions.create({
-          agent: task.agentId,
-          environment_id: task.environmentId
-        });
+        const session = await client.beta.sessions.create(
+          { agent: task.agentId } as Parameters<typeof client.beta.sessions.create>[0]
+        );
         sessionId = session.id;
       }
     } else {
-      const session = await client.beta.sessions.create({
-        agent: task.agentId,
-        environment_id: task.environmentId
-      });
+      const session = await client.beta.sessions.create(
+        { agent: task.agentId } as Parameters<typeof client.beta.sessions.create>[0]
+      );
       sessionId = session.id;
     }
 
@@ -142,7 +138,7 @@ export async function executeTask(taskId: string): Promise<void> {
       })
       .where(eq(scheduledTasks.id, taskId));
 
-    console.log(`[scheduler] Task "${task.name}" completed in ${durationMs}ms`);
+    console.log(`[scheduler] Task ${taskId} completed in ${durationMs}ms`);
   } catch (e: unknown) {
     const errorMsg = e instanceof Error ? e.message : String(e);
     console.error(`[scheduler] Task ${taskId} failed:`, errorMsg);

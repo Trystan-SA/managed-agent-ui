@@ -33,7 +33,7 @@ export async function initScheduler(): Promise<void> {
   const now = new Date();
   const missedTasks = tasks.filter(t => t.nextRunAt && t.nextRunAt < now);
   for (const task of missedTasks) {
-    console.log(`[scheduler] Missed run for "${task.name}", executing now`);
+    console.log(`[scheduler] Missed run for task ${task.id}, executing now`);
     executeTask(task.id).catch(err =>
       console.error(`[scheduler] Catch-up failed for ${task.id}:`, err)
     );

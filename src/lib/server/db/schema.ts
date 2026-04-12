@@ -106,10 +106,7 @@ export const userPreferences = pgTable('user_preferences', {
 
 export const scheduledTasks = pgTable('scheduled_tasks', {
   id: uuid('id').defaultRandom().primaryKey(),
-  name: text('name').notNull(),
-  description: text('description'),
   agentId: text('agent_id').notNull(),
-  environmentId: text('environment_id').notNull(),
   promptTemplate: text('prompt_template').notNull(),
   cronExpression: text('cron_expression').notNull(),
   schedulePreset: text('schedule_preset').notNull(),

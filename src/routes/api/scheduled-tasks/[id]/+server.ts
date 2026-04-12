@@ -32,10 +32,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   if (!existing) return json({ error: 'Not found' }, { status: 404 });
 
   const body = await request.json() as {
-    name?: string;
-    description?: string;
     agentId?: string;
-    environmentId?: string;
     promptTemplate?: string;
     schedulePreset?: string;
     timezone?: string;
@@ -50,17 +47,8 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   // Build diff for edit history
   const changes: Record<string, { from: unknown; to: unknown }> = {};
 
-  if (body.name !== undefined && body.name !== existing.name) {
-    changes.name = { from: existing.name, to: body.name };
-  }
-  if (body.description !== undefined && body.description !== existing.description) {
-    changes.description = { from: existing.description, to: body.description };
-  }
   if (body.agentId !== undefined && body.agentId !== existing.agentId) {
     changes.agentId = { from: existing.agentId, to: body.agentId };
-  }
-  if (body.environmentId !== undefined && body.environmentId !== existing.environmentId) {
-    changes.environmentId = { from: existing.environmentId, to: body.environmentId };
   }
   if (body.promptTemplate !== undefined && body.promptTemplate !== existing.promptTemplate) {
     changes.promptTemplate = { from: existing.promptTemplate, to: body.promptTemplate };
@@ -115,10 +103,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
   const [updated] = await db
     .update(scheduledTasks)
     .set({
-      name: body.name ?? existing.name,
-      description: body.description !== undefined ? body.description : existing.description,
       agentId: body.agentId ?? existing.agentId,
-      environmentId: body.environmentId ?? existing.environmentId,
       promptTemplate: body.promptTemplate ?? existing.promptTemplate,
       cronExpression: newCronExpression,
       schedulePreset: newPreset,

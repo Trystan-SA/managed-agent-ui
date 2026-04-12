@@ -16,8 +16,7 @@
     { label: 'Date', token: '{{date}}' },
     { label: 'Time', token: '{{time}}' },
     { label: 'DateTime', token: '{{datetime}}' },
-    { label: 'Run #', token: '{{run_number}}' },
-    { label: 'Task Name', token: '{{task_name}}' }
+    { label: 'Run #', token: '{{run_number}}' }
   ];
 
   let textareaEl: HTMLTextAreaElement | null = $state(null);
@@ -64,7 +63,7 @@
     bind:this={textareaEl}
     class="prompt-editor__textarea"
     {value}
-    placeholder="Enter your prompt. Use the buttons above to insert dynamic variables like &#123;&#123;date&#125;&#125; or &#123;&#123;task_name&#125;&#125;."
+    placeholder="Enter your prompt. Use the buttons above to insert dynamic variables like &#123;&#123;date&#125;&#125; or &#123;&#123;run_number&#125;&#125;."
     rows="8"
     oninput={(e) => onchange((e.currentTarget as HTMLTextAreaElement).value)}
   ></textarea>

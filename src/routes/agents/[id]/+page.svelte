@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { getPresetLabel } from '$lib/schedule-presets';
 
   const { data } = $props();
   let archiving = $state(false);
@@ -65,6 +66,28 @@
   }
 
   const tools = getToolNames();
+  const agentSchedules = data.schedules ?? [];
+  const expandedSchedules = $state<Record<string, boolean>>({});
+
+  function toggleScheduleExpand(id: string) {
+    expandedSchedules[id] = !expandedSchedules[id];
+  }
+
+  async function toggleScheduleEnabled(id: string) {
+    await fetch(`/api/scheduled-tasks/${id}/toggle`, { method: 'POST' });
+    window.location.reload();
+  }
+
+  async function triggerScheduleNow(id: string) {
+    await fetch(`/api/scheduled-tasks/${id}/run`, { method: 'POST' });
+    window.location.reload();
+  }
+
+  function formatDuration(ms: number | null): string {
+    if (!ms) return '-';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
 
   async function handleArchive() {
     archiving = true;
@@ -206,6 +229,85 @@
       </div>
     </section>
   </div>
+
+  {#if agentSchedules.length > 0}
+    <section class="schedules-section">
+      <h2 class="schedules-section__title">
+        Schedules
+        <span class="schedules-section__count">{agentSchedules.length}</span>
+      </h2>
+      <div class="schedules-section__list">
+        {#each agentSchedules as sched (sched.id)}
+          {@const isExpanded = expandedSchedules[sched.id] ?? false}
+          <div class="sched-detail">
+            <div class="sched-detail__header">
+              <button
+                type="button"
+                class="sched-detail__toggle"
+                onclick={() => toggleScheduleExpand(sched.id)}
+              >
+                <svg class="sched-detail__chevron" class:sched-detail__chevron--open={isExpanded} width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="sched-detail__preset">{getPresetLabel(sched.schedulePreset)}</span>
+                <span class="sched-detail__tz">{sched.timezone}</span>
+                <span class="pill" class:pill--active={sched.enabled} class:pill--disabled={!sched.enabled}>
+                  {sched.enabled ? 'Active' : 'Disabled'}
+                </span>
+              </button>
+              <div class="sched-detail__actions">
+                <button
+                  type="button"
+                  class="sched-detail__action-btn"
+                  onclick={() => toggleScheduleEnabled(sched.id)}
+                >
+                  {sched.enabled ? 'Disable' : 'Enable'}
+                </button>
+                <button
+                  type="button"
+                  class="sched-detail__action-btn sched-detail__action-btn--primary"
+                  onclick={() => triggerScheduleNow(sched.id)}
+                >
+                  Run Now
+                </button>
+              </div>
+            </div>
+            <div class="sched-detail__meta">
+              <span>Runs: {sched.runCount}</span>
+              {#if sched.lastRunAt}
+                <span>Last: {formatDate(String(sched.lastRunAt))}</span>
+              {/if}
+              <span>Next: {formatDate(String(sched.nextRunAt))}</span>
+            </div>
+            {#if isExpanded}
+              <div class="sched-detail__body">
+                <div class="sched-detail__prompt">
+                  <span class="sched-detail__label">Prompt</span>
+                  <pre class="prompt-block">{sched.promptTemplate}</pre>
+                </div>
+                {#if sched.executions?.length > 0}
+                  <div class="sched-detail__executions">
+                    <span class="sched-detail__label">Recent Executions</span>
+                    {#each sched.executions as exec (exec.id)}
+                      <div class="exec-row">
+                        <span class="exec-row__status" class:exec-row__status--completed={exec.status === 'completed'} class:exec-row__status--failed={exec.status === 'failed'} class:exec-row__status--running={exec.status === 'running'}>
+                          {exec.status}
+                        </span>
+                        <span class="exec-row__date">{formatDate(String(exec.startedAt))}</span>
+                        <span class="exec-row__duration">{formatDuration(exec.durationMs)}</span>
+                      </div>
+                    {/each}
+                  </div>
+                {:else}
+                  <p class="sched-detail__no-runs">No executions yet</p>
+                {/if}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    </section>
+  {/if}
 
   {#if data.versions.length > 1}
     <section class="versions">
@@ -470,6 +572,164 @@
     &__label { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-primary); font-variant-numeric: tabular-nums; }
     &__date { font-size: var(--text-xs); color: var(--text-muted); margin-left: auto; }
     &__prompt { font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-2); font-family: var(--font-mono); line-height: var(--leading-normal); }
+  }
+
+  .schedules-section {
+    margin-top: var(--space-8);
+
+    &__title {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      font-size: var(--text-sm);
+      font-weight: var(--weight-semibold);
+      color: var(--text-primary);
+      margin-bottom: var(--space-5);
+    }
+
+    &__count {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    &__list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+  }
+
+  .sched-detail {
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+
+    &__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-4) var(--space-5);
+    }
+
+    &__toggle {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-sans);
+    }
+
+    &__chevron {
+      color: var(--text-muted);
+      transition: transform var(--transition-fast);
+      &--open { transform: rotate(90deg); }
+    }
+
+    &__preset {
+      font-size: var(--text-sm);
+      font-weight: var(--weight-semibold);
+      color: var(--text-primary);
+    }
+
+    &__tz {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+
+    &__actions {
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    &__action-btn {
+      padding: var(--space-2) var(--space-4);
+      font-family: var(--font-sans);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-medium);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      background: var(--surface-2);
+      color: var(--text-secondary);
+      transition: background var(--transition-fast), border-color var(--transition-fast);
+
+      &:hover { background: var(--surface-3); border-color: var(--border-strong); }
+
+      &--primary {
+        background: var(--accent-primary);
+        color: #fff;
+        border-color: transparent;
+        &:hover { background: var(--accent-primary-hover); }
+      }
+    }
+
+    &__meta {
+      display: flex;
+      gap: var(--space-5);
+      padding: 0 var(--space-5) var(--space-4);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+
+    &__body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+      padding: var(--space-5);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    &__label {
+      font-size: var(--text-xs);
+      font-weight: var(--weight-semibold);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: var(--space-3);
+      display: block;
+    }
+
+    &__no-runs {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    &__executions {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+  }
+
+  .pill--active { background: var(--accent-success-muted); color: var(--accent-success); }
+  .pill--disabled { background: var(--surface-2); color: var(--text-muted); }
+
+  .exec-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-0);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+
+    &__status {
+      font-weight: var(--weight-semibold);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+
+      &--completed { color: var(--accent-success); }
+      &--failed { color: var(--accent-danger); }
+      &--running { color: var(--accent-warning); }
+    }
+
+    &__date { color: var(--text-muted); }
+    &__duration { color: var(--text-muted); margin-left: auto; font-variant-numeric: tabular-nums; }
   }
 
   @media (max-width: 640px) {

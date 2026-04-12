@@ -1,7 +1,6 @@
 interface TemplateContext {
   timezone: string;
   runNumber: number;
-  taskName: string;
 }
 
 export function renderTemplate(template: string, ctx: TemplateContext): string {
@@ -50,8 +49,7 @@ export function renderTemplate(template: string, ctx: TemplateContext): string {
     date: dateStr,
     time: timeStr,
     datetime: datetimeStr,
-    run_number: String(ctx.runNumber),
-    task_name: ctx.taskName
+    run_number: String(ctx.runNumber)
   };
 
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
