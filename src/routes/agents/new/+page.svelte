@@ -1,5 +1,18 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import ScheduleCard from '$components/ScheduleCard.svelte';
+
+  interface ScheduleFormData {
+    promptTemplate: string;
+    schedulePreset: string;
+    hour: number;
+    minute: number;
+    dayOfWeek: number;
+    dayOfMonth: number;
+    timezone: string;
+    sessionMode: string;
+    enabled: boolean;
+  }
 
   type ToolKeys = 'bash' | 'read' | 'write' | 'edit' | 'glob' | 'grep' | 'web_fetch' | 'web_search';
 
@@ -232,6 +245,29 @@ Make small, reviewable changes. Never refactor and add features in the same step
   });
   let error = $state('');
   let submitting = $state(false);
+  const schedules = $state<ScheduleFormData[]>([]);
+
+  function addSchedule() {
+    schedules.push({
+      promptTemplate: '',
+      schedulePreset: 'daily',
+      hour: 9,
+      minute: 0,
+      dayOfWeek: 1,
+      dayOfMonth: 1,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      sessionMode: 'new_session',
+      enabled: true
+    });
+  }
+
+  function updateSchedule(index: number, updated: ScheduleFormData) {
+    schedules[index] = updated;
+  }
+
+  function removeSchedule(index: number) {
+    schedules.splice(index, 1);
+  }
 
   function applyPreset(preset: Preset) {
     if (formDirty && selectedPreset !== preset.id) {
@@ -354,6 +390,26 @@ Make small, reviewable changes. Never refactor and add features in the same step
       }
 
       const agent = await res.json();
+
+      // Create schedules for the new agent
+      for (const sched of schedules) {
+        await fetch('/api/scheduled-tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: agent.id,
+            promptTemplate: sched.promptTemplate,
+            schedulePreset: sched.schedulePreset,
+            hour: sched.hour,
+            minute: sched.minute,
+            dayOfWeek: sched.dayOfWeek,
+            dayOfMonth: sched.dayOfMonth,
+            timezone: sched.timezone,
+            sessionMode: sched.sessionMode
+          })
+        });
+      }
+
       await goto(`/agents/${agent.id}`);
     } catch (err: unknown) {
       error = (err as Error).message;
@@ -536,6 +592,35 @@ Make small, reviewable changes. Never refactor and add features in the same step
             </p>
           {/if}
         </div>
+      </section>
+
+      <!-- Section 5: Schedules -->
+      <section class="form-section">
+        <div class="form-section__label">
+          <span class="form-section__number">5</span>
+          Schedules
+          <button
+            type="button"
+            class="schedules-add-btn"
+            onclick={addSchedule}
+          >
+            + Add Schedule
+          </button>
+        </div>
+        {#if schedules.length === 0}
+          <p class="schedules-empty">No schedules configured. Add a schedule to run this agent automatically.</p>
+        {:else}
+          <div class="schedules-list">
+            {#each schedules as sched, i (i)}
+              <ScheduleCard
+                schedule={sched}
+                index={i}
+                onchange={(updated: ScheduleFormData) => updateSchedule(i, updated)}
+                onremove={() => removeSchedule(i)}
+              />
+            {/each}
+          </div>
+        {/if}
       </section>
 
       <!-- Actions -->
@@ -1248,6 +1333,37 @@ Make small, reviewable changes. Never refactor and add features in the same step
     font-size: var(--text-sm);
     color: var(--text-muted);
     padding: var(--space-4) 0;
+  }
+
+  /* ---- Schedules ---- */
+  .schedules-add-btn {
+    margin-left: auto;
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--accent-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: var(--accent-primary-muted);
+    }
+  }
+
+  .schedules-empty {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .schedules-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
   }
 
   /* ---- Footer ---- */

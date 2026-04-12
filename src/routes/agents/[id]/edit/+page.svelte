@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ScheduleCard from '$components/ScheduleCard.svelte';
+
   const { data } = $props();
   const agent: Record<string, unknown> = data.agent;
 
@@ -20,6 +22,82 @@
   let error = $state('');
   let submitting = $state(false);
   let saved = $state(false);
+
+  interface ScheduleFormData {
+    id?: string;
+    promptTemplate: string;
+    schedulePreset: string;
+    hour: number;
+    minute: number;
+    dayOfWeek: number;
+    dayOfMonth: number;
+    timezone: string;
+    sessionMode: string;
+    enabled: boolean;
+  }
+
+  function parseCron(cron: string): { hour: number; minute: number; dayOfWeek: number; dayOfMonth: number } {
+    const parts = cron.split(' ');
+    return {
+      minute: parts[0].includes('*') ? 0 : parseInt(parts[0]),
+      hour: parts[1].includes('*') ? 0 : parseInt(parts[1]),
+      dayOfMonth: parts[2] === '*' ? 1 : parseInt(parts[2]),
+      dayOfWeek: parts[4] === '*' || parts[4].includes('-') ? 1 : parseInt(parts[4])
+    };
+  }
+
+  const existingSchedules = (data.schedules ?? []) as Array<{
+    id: string;
+    promptTemplate: string;
+    schedulePreset: string;
+    cronExpression: string;
+    timezone: string;
+    sessionMode: string;
+    enabled: boolean;
+  }>;
+
+  const schedules = $state<ScheduleFormData[]>(
+    existingSchedules.map(s => {
+      const parsed = parseCron(s.cronExpression);
+      return {
+        id: s.id,
+        promptTemplate: s.promptTemplate,
+        schedulePreset: s.schedulePreset,
+        hour: parsed.hour,
+        minute: parsed.minute,
+        dayOfWeek: parsed.dayOfWeek,
+        dayOfMonth: parsed.dayOfMonth,
+        timezone: s.timezone,
+        sessionMode: s.sessionMode,
+        enabled: s.enabled
+      };
+    })
+  );
+
+  // Track original IDs to detect deletions
+  const originalScheduleIds = new Set(existingSchedules.map(s => s.id));
+
+  function addSchedule() {
+    schedules.push({
+      promptTemplate: '',
+      schedulePreset: 'daily',
+      hour: 9,
+      minute: 0,
+      dayOfWeek: 1,
+      dayOfMonth: 1,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      sessionMode: 'new_session',
+      enabled: true
+    });
+  }
+
+  function updateSchedule(index: number, updated: ScheduleFormData) {
+    schedules[index] = updated;
+  }
+
+  function removeSchedule(index: number) {
+    schedules.splice(index, 1);
+  }
 
   // Parse tools from loaded agent
   const agentTools = agent.tools as Record<string, unknown>[] | undefined;
@@ -112,6 +190,60 @@
 
       const updated = await res.json();
       currentVersion = updated.version ?? currentVersion + 1;
+
+      // Sync schedules: delete removed, update existing, create new
+      const currentIds = new Set(schedules.filter(s => s.id).map(s => s.id as string));
+      const deletedIds = [...originalScheduleIds].filter(id => !currentIds.has(id));
+      const scheduleErrors: string[] = [];
+
+      // Delete removed schedules
+      for (const id of deletedIds) {
+        const res = await fetch(`/api/scheduled-tasks/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          scheduleErrors.push(`Failed to delete schedule ${id}`);
+        }
+      }
+
+      // Update existing and create new
+      for (const sched of schedules) {
+        const payload = {
+          agentId: agent.id as string,
+          promptTemplate: sched.promptTemplate,
+          schedulePreset: sched.schedulePreset,
+          hour: sched.hour,
+          minute: sched.minute,
+          dayOfWeek: sched.dayOfWeek,
+          dayOfMonth: sched.dayOfMonth,
+          timezone: sched.timezone,
+          sessionMode: sched.sessionMode,
+          enabled: sched.enabled
+        };
+
+        if (sched.id) {
+          const res = await fetch(`/api/scheduled-tasks/${sched.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            scheduleErrors.push(`Failed to update schedule ${sched.id}`);
+          }
+        } else {
+          const res = await fetch('/api/scheduled-tasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) {
+            scheduleErrors.push('Failed to create a new schedule');
+          }
+        }
+      }
+
+      if (scheduleErrors.length > 0) {
+        error = `Agent saved, but some schedule changes failed: ${scheduleErrors.join('; ')}`;
+      }
+
       saved = true;
       setTimeout(() => (saved = false), 3000);
     } catch (err: unknown) {
@@ -295,6 +427,35 @@
         {/if}
       </div>
     </section>
+
+      <!-- Section 5: Schedules -->
+      <section class="form-section">
+        <div class="form-section__label">
+          <span class="form-section__number">5</span>
+          Schedules
+          <button
+            type="button"
+            class="schedules-add-btn"
+            onclick={addSchedule}
+          >
+            + Add Schedule
+          </button>
+        </div>
+        {#if schedules.length === 0}
+          <p class="schedules-empty">No schedules configured. Add a schedule to run this agent automatically.</p>
+        {:else}
+          <div class="schedules-list">
+            {#each schedules as sched, i (sched.id ?? `new-${i}`)}
+              <ScheduleCard
+                schedule={sched}
+                index={i}
+                onchange={(updated: ScheduleFormData) => updateSchedule(i, updated)}
+                onremove={() => removeSchedule(i)}
+              />
+            {/each}
+          </div>
+        {/if}
+      </section>
 
     <!-- Actions -->
     <div class="form-footer">
@@ -761,6 +922,33 @@
   }
 
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  .schedules-add-btn {
+    margin-left: auto;
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--accent-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+    &:hover { background: var(--accent-primary-muted); }
+  }
+
+  .schedules-empty {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .schedules-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
 
   @media (max-width: 640px) {
     .model-grid { grid-template-columns: 1fr; }
