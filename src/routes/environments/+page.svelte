@@ -1,7 +1,7 @@
 <script lang="ts">
   import { formatDate } from '$lib/utils/format';
   import EmptyState from '$components/EmptyState.svelte';
-  import iconEnvs from '$lib/assets/icons/empty-environments.svg';
+  import iconEnvs from '$lib/assets/icons/empty-environments.svg?raw';
 
   const { data } = $props();
 </script>

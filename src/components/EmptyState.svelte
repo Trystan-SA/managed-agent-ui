@@ -15,7 +15,8 @@
 </script>
 
 <div class="empty-state">
-  <img class="empty-state__icon" src={icon} alt="" width="36" height="36" />
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+  <div class="empty-state__icon">{@html icon}</div>
   <h3 class="empty-state__title">{title}</h3>
   <p class="empty-state__desc">{description}</p>
   {#if actionHref && actionLabel}
@@ -42,6 +43,14 @@
     &__icon {
       margin-bottom: var(--space-5);
       opacity: 0.25;
+      color: var(--text-primary);
+      width: 36px;
+      height: 36px;
+
+      :global(svg) {
+        width: 100%;
+        height: 100%;
+      }
     }
 
     &__title {
