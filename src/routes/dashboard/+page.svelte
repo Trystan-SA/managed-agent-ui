@@ -13,18 +13,13 @@
   interface Environment { id: string; name: string; config?: { networking?: { type?: string } }; [key: string]: unknown; }
 
   // --- Session list (sidebar) ---
-  let localSessions: Session[] = $state([]);
+  let localSessions: Session[] = $derived([...(data.sessions as Session[])]);
   const activeSessions = $derived(localSessions.filter(s => s.status === 'running'));
   const pastSessions = $derived(localSessions.filter(s => s.status !== 'running'));
 
   // --- Agents / Environments (for new chat form) ---
   const agents = $derived((data.agents ?? []) as Agent[]);
   const environments = $derived((data.environments ?? []) as Environment[]);
-
-  // Sync server data into local state
-  $effect(() => {
-    localSessions = [...(data.sessions as Session[])];
-  });
 
   // --- Current chat state ---
   let currentSessionId = $state<string | null>(null);
