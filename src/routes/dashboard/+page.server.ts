@@ -15,8 +15,8 @@ export const load: PageServerLoad = async () => {
 
     return {
       sessions: JSON.parse(JSON.stringify(sessions)),
-      agents: JSON.parse(JSON.stringify(agents.filter((a: Record<string, unknown>) => !a.archived_at))),
-      environments: JSON.parse(JSON.stringify(environments.filter((e: Record<string, unknown>) => !e.archived_at)))
+      agents: JSON.parse(JSON.stringify(agents.filter(a => !a.archived_at))),
+      environments: JSON.parse(JSON.stringify(environments.filter(e => !e.archived_at)))
     };
   } catch (e: unknown) {
     console.error('[dashboard]', e);

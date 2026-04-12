@@ -13,25 +13,34 @@
   interface Environment { id: string; name: string; config?: { networking?: { type?: string } }; [key: string]: unknown; }
 
   // --- Session list (sidebar) ---
-  let localSessions: Session[] = $state([...(data.sessions as Session[])]);
+  let localSessions: Session[] = $state([]);
   const activeSessions = $derived(localSessions.filter(s => s.status === 'running'));
   const pastSessions = $derived(localSessions.filter(s => s.status !== 'running'));
 
   // --- Agents / Environments (for new chat form) ---
-  const agents: Agent[] = data.agents as Agent[];
-  const environments: Environment[] = data.environments as Environment[];
+  const agents = $derived((data.agents ?? []) as Agent[]);
+  const environments = $derived((data.environments ?? []) as Environment[]);
+
+  // Sync server data into local state
+  $effect(() => {
+    localSessions = [...(data.sessions as Session[])];
+  });
 
   // --- Current chat state ---
-  let currentSessionId: string | null = $state(null);
-  let currentSession: Session | null = $state(null);
+  let currentSessionId = $state<string | null>(null);
+  let currentSession = $state<Session | null>(null);
   const messages: { role: 'user' | 'assistant'; content: ContentBlock[] }[] = $state([]);
   let status: string = $state('idle');
   let inputText: string = $state('');
   let evtSource: EventSource | null = $state(null);
 
   // --- New chat form ---
-  let selectedAgentId = $state(agents.length > 0 ? agents[0].id : '');
+  let selectedAgentId = $state('');
   let selectedEnvId = $state('');
+
+  $effect(() => {
+    if (!selectedAgentId && agents.length > 0) selectedAgentId = agents[0].id;
+  });
 
   // --- Scroll ---
   let scrollContainer: HTMLDivElement | undefined = $state(undefined);
