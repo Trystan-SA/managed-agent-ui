@@ -4,9 +4,7 @@
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/agents', label: 'Agents' },
-    { href: '/environments', label: 'Environments' },
-    { href: '/sessions', label: 'Sessions' },
-    { href: '/chat', label: 'Chat' }
+    { href: '/environments', label: 'Environments' }
   ];
 
   function isActive(pathname: string, href: string): boolean {

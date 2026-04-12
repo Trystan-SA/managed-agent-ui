@@ -1,10 +1,8 @@
 #!/bin/sh
 set -e
 
-if [ ! -d "node_modules" ]; then
-  echo "Installing dependencies..."
-  npm install
-fi
+echo "Installing dependencies..."
+npm install
 
 echo "Running database migrations..."
 npx drizzle-kit push --force 2>&1

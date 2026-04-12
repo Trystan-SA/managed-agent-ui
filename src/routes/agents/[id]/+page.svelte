@@ -3,8 +3,8 @@
   import { getPresetLabel } from '$lib/schedule-presets';
 
   const { data } = $props();
-  let archiving = $state(false);
-  let showArchiveConfirm = $state(false);
+  let deleting = $state(false);
+  let showDeleteConfirm = $state(false);
 
   const agent: Record<string, unknown> = data.agent;
   const modelId: string = typeof agent.model === 'string' ? agent.model : (agent.model as Record<string, unknown>)?.id as string ?? '';
@@ -89,20 +89,20 @@
     return `${(ms / 1000).toFixed(1)}s`;
   }
 
-  async function handleArchive() {
-    archiving = true;
+  async function handleDelete() {
+    deleting = true;
     try {
-      const res = await fetch(`/api/agents/${agent.id}/archive`, { method: 'POST' });
+      const res = await fetch(`/api/agents/${agent.id}`, { method: 'DELETE' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `Archive failed (${res.status})`);
+        throw new Error(err.error?.message || `Delete failed (${res.status})`);
       }
       await goto('/agents');
     } catch (err: unknown) {
       alert((err as Error).message);
     } finally {
-      archiving = false;
-      showArchiveConfirm = false;
+      deleting = false;
+      showDeleteConfirm = false;
     }
   }
 </script>
@@ -147,27 +147,27 @@
       </a>
       <button
         class="actions-bar__btn actions-bar__btn--danger"
-        onclick={() => (showArchiveConfirm = true)}
-        disabled={archiving}
+        onclick={() => (showDeleteConfirm = true)}
+        disabled={deleting}
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <path d="M2 4h12M4 4v9a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4M6 2h4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
         </svg>
-        Archive
+        Delete
       </button>
     </div>
   {/if}
 
-  {#if showArchiveConfirm}
-    <div class="confirm-backdrop" onclick={() => (showArchiveConfirm = false)} onkeydown={(e) => e.key === 'Escape' && (showArchiveConfirm = false)} role="presentation">
+  {#if showDeleteConfirm}
+    <div class="confirm-backdrop" onclick={() => (showDeleteConfirm = false)} onkeydown={(e) => e.key === 'Escape' && (showDeleteConfirm = false)} role="presentation">
       <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
         <p class="confirm-modal__text">
-          Archive <strong>{agent.name}</strong>? This cannot be undone. The agent will no longer be usable in new sessions.
+          Delete <strong>{agent.name}</strong>? This action cannot be undone.
         </p>
         <div class="confirm-modal__actions">
-          <button class="confirm-modal__btn confirm-modal__btn--cancel" onclick={() => (showArchiveConfirm = false)}>Cancel</button>
-          <button class="confirm-modal__btn confirm-modal__btn--danger" onclick={handleArchive} disabled={archiving}>
-            {archiving ? 'Archiving...' : 'Archive Agent'}
+          <button class="confirm-modal__btn confirm-modal__btn--cancel" onclick={() => (showDeleteConfirm = false)}>Cancel</button>
+          <button class="confirm-modal__btn confirm-modal__btn--danger" onclick={handleDelete} disabled={deleting}>
+            {deleting ? 'Deleting...' : 'Delete Agent'}
           </button>
         </div>
       </div>
