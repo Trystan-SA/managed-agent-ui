@@ -4,12 +4,11 @@
   import ChatMessage from '$components/ChatMessage.svelte';
   import Badge from '$components/Badge.svelte';
   import { apiFetch } from '$lib/utils/api';
+  import { applyEventToMessages, type ChatMessage as ChatMessageData, type ContentBlock } from '$lib/utils/chatEvents';
 
   const { data } = $props();
 
-  interface ContentBlock { type: string; [key: string]: unknown; }
-
-  const messages: { role: 'user' | 'assistant'; content: ContentBlock[] }[] = $state([]);
+  const messages: ChatMessageData[] = $state((data.messages as ChatMessageData[] | undefined) ?? []);
   let status: string = $state('idle');
   let inputText: string = $state('');
   let evtSource: EventSource | null = $state(null);
@@ -59,7 +58,6 @@
   // --- SSE ---
   function openStream() {
     closeStream();
-    messages.push({ role: 'assistant', content: [] });
     const src = new EventSource(`/api/sessions/${sessionId}/stream`);
     evtSource = src;
     src.onmessage = (event) => {
@@ -79,50 +77,12 @@
   }
 
   function handleStreamEvent(eventData: ContentBlock) {
-    const assistantMsg = messages.findLast((m) => m.role === 'assistant');
-    if (!assistantMsg && eventData.type !== 'session.status_idle' && eventData.type !== 'session.status_running') {
-      messages.push({ role: 'assistant', content: [] });
-    }
-    const currentMsg = messages.findLast((m) => m.role === 'assistant');
-    switch (eventData.type) {
-      case 'agent.message': {
-        if (!currentMsg) break;
-        for (const block of (eventData.content as ContentBlock[]) ?? []) {
-          if (block.type === 'text') {
-            const lastBlock = currentMsg.content[currentMsg.content.length - 1];
-            if (lastBlock && lastBlock.type === 'text') {
-              lastBlock.text = String(lastBlock.text) + String(block.text);
-            } else {
-              currentMsg.content.push({ type: 'text', text: block.text });
-            }
-          }
-        }
-        scrollToBottom();
-        break;
-      }
-      case 'agent.thinking': {
-        if (!currentMsg) break;
-        currentMsg.content.push({ type: 'thinking', thinking: eventData.thinking ?? eventData.content ?? eventData.text ?? '' });
-        scrollToBottom();
-        break;
-      }
-      case 'agent.tool_use': {
-        if (!currentMsg) break;
-        currentMsg.content.push({ type: 'tool_use', id: eventData.id ?? eventData.tool_use_id, name: eventData.name ?? eventData.tool_name ?? 'tool', input: eventData.input ?? {}, status: 'running', result: undefined });
-        scrollToBottom();
-        break;
-      }
-      case 'agent.tool_result': {
-        if (!currentMsg) break;
-        const toolId = eventData.tool_use_id ?? eventData.id;
-        const toolBlock = currentMsg.content.find((b: ContentBlock) => b.type === 'tool_use' && b.id === toolId);
-        if (toolBlock) { toolBlock.result = eventData.content ?? eventData.result ?? eventData.output; toolBlock.status = 'done'; }
-        scrollToBottom();
-        break;
-      }
-      case 'session.status_idle': { status = 'idle'; closeStream(); break; }
-      case 'session.status_running': { status = 'running'; break; }
-    }
+    // The user message was pushed optimistically in sendMessage(); skip the
+    // server echo so we don't duplicate it.
+    if (eventData.type === 'user.message') return;
+    if (eventData.type === 'session.status_idle') { status = 'idle'; closeStream(); return; }
+    if (eventData.type === 'session.status_running') { status = 'running'; return; }
+    if (applyEventToMessages(messages, eventData)) scrollToBottom();
   }
 
   async function sendMessage() {

@@ -3,11 +3,11 @@
   import ChatMessage from '$components/ChatMessage.svelte';
   import Badge from '$components/Badge.svelte';
   import { apiFetch } from '$lib/utils/api';
+  import { applyEventToMessages, type ContentBlock } from '$lib/utils/chatEvents';
 
   const { data } = $props();
 
   // --- Types ---
-  interface ContentBlock { type: string; [key: string]: unknown; }
   interface Session { id: string; title?: string; name?: string; status?: string; agent_id?: string; created_at?: string; [key: string]: unknown; }
   interface Agent { id: string; name: string; model: string | Record<string, unknown>; [key: string]: unknown; }
   interface Environment { id: string; name: string; config?: { networking?: { type?: string } }; [key: string]: unknown; }
@@ -92,12 +92,31 @@
   }
 
   // --- Session selection ---
-  function selectSession(session: Session) {
+  async function selectSession(session: Session) {
     closeStream();
     messages.length = 0;
     currentSessionId = session.id;
     currentSession = session;
     status = (session.status as string) ?? 'idle';
+
+    // Load conversation history from Anthropic — fetched fresh each time since
+    // idle sessions may have been advanced by other clients.
+    try {
+      const { events } = await apiFetch<{ events: ContentBlock[] }>(`/api/sessions/${session.id}/events`);
+      // Guard against a race if the user quickly switched to another session.
+      if (currentSessionId !== session.id) return;
+      for (const ev of events) {
+        applyEventToMessages(messages, ev);
+      }
+      shouldAutoScroll = true;
+      scrollToBottom();
+    } catch (err) {
+      if (currentSessionId !== session.id) return;
+      messages.push({
+        role: 'assistant',
+        content: [{ type: 'text', text: `Failed to load history: ${err instanceof Error ? err.message : 'Unknown error'}` }]
+      });
+    }
   }
 
   function startNewChat() {
@@ -111,7 +130,6 @@
   // --- SSE Streaming ---
   function openStream(sessionId: string) {
     closeStream();
-    messages.push({ role: 'assistant', content: [] });
     const src = new EventSource(`/api/sessions/${sessionId}/stream`);
     evtSource = src;
     src.onmessage = (event) => {
@@ -139,59 +157,21 @@
   }
 
   function handleStreamEvent(eventData: ContentBlock) {
-    const assistantMsg = messages.findLast((m) => m.role === 'assistant');
-    if (!assistantMsg && eventData.type !== 'session.status_idle' && eventData.type !== 'session.status_running') {
-      messages.push({ role: 'assistant', content: [] });
+    // The user message was pushed optimistically in sendMessage(); skip the
+    // server echo so we don't duplicate it.
+    if (eventData.type === 'user.message') return;
+    if (eventData.type === 'session.status_idle') {
+      status = 'idle';
+      if (currentSessionId) updateSessionStatus(currentSessionId, 'idle');
+      closeStream();
+      return;
     }
-    const currentMsg = messages.findLast((m) => m.role === 'assistant');
-    switch (eventData.type) {
-      case 'agent.message': {
-        if (!currentMsg) break;
-        for (const block of (eventData.content as ContentBlock[]) ?? []) {
-          if (block.type === 'text') {
-            const lastBlock = currentMsg.content[currentMsg.content.length - 1];
-            if (lastBlock && lastBlock.type === 'text') {
-              lastBlock.text = String(lastBlock.text) + String(block.text);
-            } else {
-              currentMsg.content.push({ type: 'text', text: block.text });
-            }
-          }
-        }
-        scrollToBottom();
-        break;
-      }
-      case 'agent.thinking': {
-        if (!currentMsg) break;
-        currentMsg.content.push({ type: 'thinking', thinking: eventData.thinking ?? eventData.content ?? eventData.text ?? '' });
-        scrollToBottom();
-        break;
-      }
-      case 'agent.tool_use': {
-        if (!currentMsg) break;
-        currentMsg.content.push({ type: 'tool_use', id: eventData.id ?? eventData.tool_use_id, name: eventData.name ?? eventData.tool_name ?? 'tool', input: eventData.input ?? {}, status: 'running', result: undefined });
-        scrollToBottom();
-        break;
-      }
-      case 'agent.tool_result': {
-        if (!currentMsg) break;
-        const toolId = eventData.tool_use_id ?? eventData.id;
-        const toolBlock = currentMsg.content.find((b: ContentBlock) => b.type === 'tool_use' && b.id === toolId);
-        if (toolBlock) { toolBlock.result = eventData.content ?? eventData.result ?? eventData.output; toolBlock.status = 'done'; }
-        scrollToBottom();
-        break;
-      }
-      case 'session.status_idle': {
-        status = 'idle';
-        if (currentSessionId) updateSessionStatus(currentSessionId, 'idle');
-        closeStream();
-        break;
-      }
-      case 'session.status_running': {
-        status = 'running';
-        if (currentSessionId) updateSessionStatus(currentSessionId, 'running');
-        break;
-      }
+    if (eventData.type === 'session.status_running') {
+      status = 'running';
+      if (currentSessionId) updateSessionStatus(currentSessionId, 'running');
+      return;
     }
+    if (applyEventToMessages(messages, eventData)) scrollToBottom();
   }
 
   // --- Send message ---
