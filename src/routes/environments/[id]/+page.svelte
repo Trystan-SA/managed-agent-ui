@@ -12,6 +12,18 @@
 
   const networking = $derived(env.config?.networking);
   const packages = $derived(env.config?.packages);
+  const installedPackages = $derived(
+    packages
+      ? (Object.entries(packages).filter(
+          ([, pkgs]) => Array.isArray(pkgs) && pkgs.length > 0
+        ) as [string, string[]][])
+      : []
+  );
+  const metadataEntries = $derived(
+    env.metadata && typeof env.metadata === 'object'
+      ? Object.entries(env.metadata as Record<string, string>)
+      : []
+  );
   const isArchived = $derived(!!env.archived_at);
 
   async function handleDelete() {
@@ -161,7 +173,7 @@
       {/if}
     </section>
 
-    {#if packages && Object.keys(packages).length > 0}
+    {#if installedPackages.length > 0}
       <section class="section-card">
         <div class="section-card__header">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -172,20 +184,35 @@
         </div>
 
         <div class="detail-rows">
-          {#each Object.entries(packages) as [manager, pkgs] (manager)}
+          {#each installedPackages as [manager, pkgs] (manager)}
             <div class="detail-row">
               <span class="detail-row__label">{manager}</span>
               <div class="detail-row__value">
-                {#if Array.isArray(pkgs) && pkgs.length > 0}
-                  <div class="pkg-chips">
-                    {#each pkgs as pkg, index (index)}
-                      <span class="pkg-chip">{pkg}</span>
-                    {/each}
-                  </div>
-                {:else}
-                  <span class="text-muted">None</span>
-                {/if}
+                <div class="pkg-chips">
+                  {#each pkgs as pkg, index (index)}
+                    <span class="pkg-chip">{pkg}</span>
+                  {/each}
+                </div>
               </div>
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
+
+    {#if metadataEntries.length > 0}
+      <section class="section-card">
+        <div class="section-card__header">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 4h12M2 8h12M2 12h7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+          </svg>
+          <h2 class="section-card__title">Metadata</h2>
+        </div>
+        <div class="detail-rows">
+          {#each metadataEntries as [key, value] (key)}
+            <div class="detail-row">
+              <span class="detail-row__label">{key}</span>
+              <span class="detail-row__value detail-row__value--code">{value}</span>
             </div>
           {/each}
         </div>
@@ -453,6 +480,13 @@
       display: flex;
       align-items: center;
       gap: var(--space-3);
+
+      &--code {
+        font-family: var(--font-mono);
+        font-size: var(--text-xs);
+        color: var(--text-secondary);
+        word-break: break-word;
+      }
     }
   }
 
@@ -501,8 +535,6 @@
     color: var(--accent-info);
     border-radius: var(--radius-sm);
   }
-
-  .text-muted { color: var(--text-muted); }
 
   .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
 
