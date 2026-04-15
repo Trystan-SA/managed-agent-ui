@@ -1,8 +1,15 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { untrack } from 'svelte';
   import ScheduleCard from '$components/ScheduleCard.svelte';
+  import AgentMcpServers, { type McpServerRow } from '$components/AgentMcpServers.svelte';
+
+  const { data } = $props();
+  // Server-loaded data is a one-shot seed for the new-agent form.
+  const environments = untrack(() => (data?.environments ?? []) as Array<{ id: string; name?: string }>);
 
   interface ScheduleFormData {
+    environmentId: string;
     promptTemplate: string;
     schedulePreset: string;
     hour: number;
@@ -246,9 +253,11 @@ Make small, reviewable changes. Never refactor and add features in the same step
   let error = $state('');
   let submitting = $state(false);
   const schedules = $state<ScheduleFormData[]>([]);
+  let mcpServers = $state<McpServerRow[]>([]);
 
   function addSchedule() {
     schedules.push({
+      environmentId: environments[0]?.id ?? '',
       promptTemplate: '',
       schedulePreset: 'daily',
       hour: 9,
@@ -352,17 +361,31 @@ Make small, reviewable changes. Never refactor and add features in the same step
   }
 
   function buildTools(): Record<string, unknown>[] {
-    if (!agentToolsetEnabled) return [];
+    const tools: Record<string, unknown>[] = [];
 
-    const configs = Object.entries(toolStates)
-      .filter(([_, enabled]) => !enabled)
-      .map(([name]) => ({ name, enabled: false }));
-
-    const tool: Record<string, unknown> = { type: 'agent_toolset_20260401' };
-    if (configs.length > 0) {
-      tool.configs = configs;
+    if (agentToolsetEnabled) {
+      const configs = Object.entries(toolStates)
+        .filter(([_, enabled]) => !enabled)
+        .map(([name]) => ({ name, enabled: false }));
+      const tool: Record<string, unknown> = { type: 'agent_toolset_20260401' };
+      if (configs.length > 0) tool.configs = configs;
+      tools.push(tool);
     }
-    return [tool];
+
+    for (const srv of mcpServers) {
+      const trimmed = srv.name.trim();
+      if (srv.enabled && trimmed) {
+        tools.push({ type: 'mcp_toolset', mcp_server_name: trimmed });
+      }
+    }
+
+    return tools;
+  }
+
+  function buildMcpServersPayload() {
+    return mcpServers
+      .filter((s) => s.name.trim() !== '' && s.url.trim() !== '')
+      .map((s) => ({ name: s.name.trim(), type: 'url' as const, url: s.url.trim() }));
   }
 
   async function handleSubmit(e: SubmitEvent) {
@@ -371,12 +394,14 @@ Make small, reviewable changes. Never refactor and add features in the same step
     submitting = true;
 
     try {
-      const body = {
+      const mcpServersPayload = buildMcpServersPayload();
+      const body: Record<string, unknown> = {
         name,
         model,
-        description: systemPrompt || undefined,
+        system: systemPrompt || undefined,
         tools: buildTools()
       };
+      if (mcpServersPayload.length > 0) body.mcp_servers = mcpServersPayload;
 
       const res = await fetch('/api/agents', {
         method: 'POST',
@@ -398,6 +423,7 @@ Make small, reviewable changes. Never refactor and add features in the same step
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             agentId: agent.id,
+            environmentId: sched.environmentId,
             promptTemplate: sched.promptTemplate,
             schedulePreset: sched.schedulePreset,
             hour: sched.hour,
@@ -448,8 +474,13 @@ Make small, reviewable changes. Never refactor and add features in the same step
     {/if}
 
     {#if showConfirm}
-      <div class="confirm-backdrop" onclick={cancelApply} onkeydown={(e) => e.key === 'Escape' && cancelApply()} role="presentation">
-        <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+      <div
+        class="confirm-backdrop"
+        onclick={(e) => { if (e.target === e.currentTarget) cancelApply(); }}
+        onkeydown={(e) => e.key === 'Escape' && cancelApply()}
+        role="presentation"
+      >
+        <div class="confirm-modal" role="dialog" tabindex="-1">
           <p class="confirm-modal__text">
             Applying <strong>{pendingPreset?.label}</strong> will overwrite your current name and system prompt.
           </p>
@@ -594,10 +625,24 @@ Make small, reviewable changes. Never refactor and add features in the same step
         </div>
       </section>
 
-      <!-- Section 5: Schedules -->
+      <!-- Section 5: MCP servers -->
       <section class="form-section">
         <div class="form-section__label">
           <span class="form-section__number">5</span>
+          MCP Servers
+        </div>
+        <div class="form-section__card">
+          <AgentMcpServers
+            servers={mcpServers}
+            onchange={(next) => (mcpServers = next)}
+          />
+        </div>
+      </section>
+
+      <!-- Section 6: Schedules -->
+      <section class="form-section">
+        <div class="form-section__label">
+          <span class="form-section__number">6</span>
           Schedules
           <button
             type="button"
@@ -615,6 +660,7 @@ Make small, reviewable changes. Never refactor and add features in the same step
               <ScheduleCard
                 schedule={sched}
                 index={i}
+                {environments}
                 onchange={(updated: ScheduleFormData) => updateSchedule(i, updated)}
                 onremove={() => removeSchedule(i)}
               />

@@ -4,15 +4,8 @@ import { db } from '$lib/server/db';
 import { invites, users } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
-import { hashPassword } from '$lib/server/auth';
+import { hashPassword, requireAdmin } from '$lib/server/auth';
 import { sendInviteEmail } from '$lib/server/email';
-
-function requireAdmin(locals: App.Locals) {
-  if (!locals.userId || locals.userRole !== 'admin') {
-    return json({ error: 'Admin access required' }, { status: 403 });
-  }
-  return null;
-}
 
 // List all invites
 export const GET: RequestHandler = async ({ locals }) => {

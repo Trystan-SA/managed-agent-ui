@@ -3,13 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { apiKeys } from '$lib/server/db/schema';
 import { encrypt } from '$lib/server/crypto';
-
-function requireAdmin(locals: App.Locals) {
-  if (!locals.userId || locals.userRole !== 'admin') {
-    return json({ error: 'Admin access required' }, { status: 403 });
-  }
-  return null;
-}
+import { requireAdmin } from '$lib/server/auth';
 
 // Get the global API key status
 export const GET: RequestHandler = async ({ locals }) => {

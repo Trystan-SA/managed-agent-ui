@@ -104,8 +104,13 @@
   </div>
 
   {#if showDeleteConfirm}
-    <div class="confirm-backdrop" onclick={() => (showDeleteConfirm = false)} onkeydown={(e) => e.key === 'Escape' && (showDeleteConfirm = false)} role="presentation">
-      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+    <div
+      class="confirm-backdrop"
+      onclick={(e) => { if (e.target === e.currentTarget) showDeleteConfirm = false; }}
+      onkeydown={(e) => e.key === 'Escape' && (showDeleteConfirm = false)}
+      role="presentation"
+    >
+      <div class="confirm-modal" role="dialog" tabindex="-1">
         <div class="confirm-modal__icon confirm-modal__icon--danger">
           <svg width="20" height="20" viewBox="0 0 16 16" fill="none">
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>

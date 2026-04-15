@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
-import type { Cookies } from '@sveltejs/kit';
+import { json, type Cookies } from '@sveltejs/kit';
 import { db } from './db';
 import { authSessions } from './db/schema';
 import { eq, lt } from 'drizzle-orm';
@@ -47,6 +47,17 @@ export async function getUserIdFromSession(cookies: Cookies): Promise<string | n
 
   if (!session) return null;
   return session.userId;
+}
+
+/**
+ * Returns a 403 response if the request isn't from an authenticated admin,
+ * otherwise null. Use as: `const denied = requireAdmin(locals); if (denied) return denied;`
+ */
+export function requireAdmin(locals: App.Locals) {
+  if (!locals.userId || locals.userRole !== 'admin') {
+    return json({ error: 'Admin access required' }, { status: 403 });
+  }
+  return null;
 }
 
 export async function destroySession(cookies: Cookies): Promise<void> {

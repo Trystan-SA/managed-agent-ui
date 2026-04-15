@@ -5,6 +5,7 @@
 
   interface ScheduleData {
     id?: string;
+    environmentId: string;
     promptTemplate: string;
     schedulePreset: string;
     hour: number;
@@ -16,14 +17,21 @@
     enabled: boolean;
   }
 
+  interface EnvironmentOption {
+    id: string;
+    name?: string;
+  }
+
   const {
     schedule,
     index,
+    environments,
     onchange,
     onremove
   }: {
     schedule: ScheduleData;
     index: number;
+    environments: EnvironmentOption[];
     onchange: (updated: ScheduleData) => void;
     onremove: () => void;
   } = $props();
@@ -112,9 +120,33 @@
 
   {#if !collapsed}
     <div class="schedule-card__body">
+      <!-- Environment -->
+      <div class="schedule-card__field">
+        <label class="schedule-card__field-label" for="env-{index}">
+          Environment <span class="schedule-card__req">*</span>
+        </label>
+        <select
+          id="env-{index}"
+          class="schedule-card__input"
+          value={schedule.environmentId}
+          onchange={(e) => update({ environmentId: (e.currentTarget as HTMLSelectElement).value })}
+          required
+        >
+          <option value="" disabled>Select an environment…</option>
+          {#each environments as env (env.id)}
+            <option value={env.id}>{env.name ?? env.id}</option>
+          {/each}
+        </select>
+        {#if !schedule.environmentId}
+          <span class="schedule-card__field-hint schedule-card__field-hint--warn">
+            Required — the Anthropic API needs an environment to run a session.
+          </span>
+        {/if}
+      </div>
+
       <!-- Prompt Template -->
       <div class="schedule-card__field">
-        <label class="schedule-card__field-label">Prompt Template</label>
+        <div class="schedule-card__field-label">Prompt Template</div>
         <PromptTemplateEditor
           value={schedule.promptTemplate}
           onchange={(v) => update({ promptTemplate: v })}
@@ -123,7 +155,7 @@
 
       <!-- Schedule -->
       <div class="schedule-card__field">
-        <label class="schedule-card__field-label">Schedule</label>
+        <div class="schedule-card__field-label">Schedule</div>
         <SchedulePresetPicker
           preset={schedule.schedulePreset}
           hour={schedule.hour}
@@ -148,7 +180,7 @@
 
       <!-- Session Mode -->
       <div class="schedule-card__field">
-        <label class="schedule-card__field-label">Session Mode</label>
+        <div class="schedule-card__field-label">Session Mode</div>
         <div class="schedule-card__radios">
           <label class="schedule-card__radio">
             <input
@@ -335,6 +367,21 @@
       font-size: var(--text-sm);
       font-weight: var(--weight-medium);
       color: var(--text-secondary);
+    }
+
+    &__req {
+      color: var(--accent-danger);
+      margin-left: var(--space-1);
+    }
+
+    &__field-hint {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      margin-top: var(--space-1);
+
+      &--warn {
+        color: var(--accent-warning);
+      }
     }
 
     &__input {

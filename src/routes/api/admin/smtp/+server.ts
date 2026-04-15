@@ -4,13 +4,7 @@ import { db } from '$lib/server/db';
 import { smtpSettings } from '$lib/server/db/schema';
 import { encrypt } from '$lib/server/crypto';
 import { sendEmail } from '$lib/server/email';
-
-function requireAdmin(locals: App.Locals) {
-  if (!locals.userId || locals.userRole !== 'admin') {
-    return json({ error: 'Admin access required' }, { status: 403 });
-  }
-  return null;
-}
+import { requireAdmin } from '$lib/server/auth';
 
 // Get SMTP settings (password masked)
 export const GET: RequestHandler = async ({ locals }) => {

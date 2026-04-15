@@ -6,15 +6,8 @@ import { eq, desc, inArray } from 'drizzle-orm';
 
 export const load: PageServerLoad = async ({ params }) => {
   const client = await createAnthropicClient();
-  const [agent, versions, agentSchedules] = await Promise.all([
+  const [agent, agentSchedules] = await Promise.all([
     client.beta.agents.retrieve(params.id),
-    (async () => {
-      const v = [];
-      for await (const ver of client.beta.agents.versions.list(params.id)) {
-        v.push(ver);
-      }
-      return v;
-    })(),
     db.select().from(scheduledTasks).where(eq(scheduledTasks.agentId, params.id))
   ]);
 
@@ -45,7 +38,6 @@ export const load: PageServerLoad = async ({ params }) => {
 
   return {
     agent: JSON.parse(JSON.stringify(agent)),
-    versions: JSON.parse(JSON.stringify(versions)),
     schedules: schedulesWithExecutions
   };
 };

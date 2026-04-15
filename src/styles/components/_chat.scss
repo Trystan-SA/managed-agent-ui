@@ -16,22 +16,17 @@
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-7);
   @include scrollbar;
 }
 
-// ——— Message Bubble ———
+// ——— Message base ———
+// User speech is a bubble; the assistant is a transcript. They share the
+// base flex layout but diverge on width, alignment, and decoration.
 .message {
   display: flex;
   flex-direction: column;
-  max-width: 72%;
-  gap: var(--space-2);
-
-  &__meta {
-    font-size: var(--text-xs);
-    color: var(--text-muted);
-    padding: 0 var(--space-2);
-  }
+  gap: var(--space-3);
 
   &__bubble {
     padding: var(--space-5) var(--space-6);
@@ -41,31 +36,96 @@
     word-wrap: break-word;
   }
 
-  // User messages — right-aligned, accent
+  // ——— User: quiet right-aligned note with tracked attribution ———
+  // Scheduled sessions drop long multi-line prompt templates into the user
+  // turn; a loud indigo block at 72% would turn setup context into a visual
+  // peer of the agent's output. A subtle panel + tiny "YOU" label keeps the
+  // turn recognizably the user's without competing with the response.
   &--user {
     align-self: flex-end;
     align-items: flex-end;
+    max-width: 62%;
 
-    .message__bubble {
-      background: var(--accent-primary);
-      color: #fff;
-      border-bottom-right-radius: var(--radius-sm);
+    .message__attribution {
+      font-size: 10px;
+      font-weight: var(--weight-semibold);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding-right: var(--space-2);
     }
-  }
-
-  // Assistant messages — left-aligned, surface
-  &--assistant {
-    align-self: flex-start;
-    align-items: flex-start;
 
     .message__bubble {
       background: var(--surface-2);
       color: var(--text-primary);
-      border-bottom-left-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      border-left: 2px solid var(--accent-primary);
+      padding: var(--space-4) var(--space-5);
+      border-bottom-right-radius: var(--radius-sm);
+    }
+
+    .message-text {
+      font-size: var(--text-xs);
+      color: var(--text-secondary);
     }
   }
 
-  // System / error messages
+  // ——— Assistant: transcript, full column ———
+  // No bubble. Monogram badge carries the identity; sentence-case name reads
+  // as attribution. Tool/thinking cards render flush so code blocks inside
+  // them aren't squeezed into 72% of the page.
+  &--assistant {
+    align-self: stretch;
+    width: 100%;
+
+    .message__speaker {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .message__monogram {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      flex-shrink: 0;
+      background: var(--accent-primary);
+      color: #fff;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: var(--weight-bold);
+      line-height: 1;
+      user-select: none;
+    }
+
+    .message__name {
+      font-size: var(--text-sm);
+      font-weight: var(--weight-semibold);
+      color: var(--text-primary);
+      letter-spacing: -0.005em;
+    }
+
+    .message__stream {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+      padding-left: calc(22px + var(--space-3));
+      color: var(--text-primary);
+      font-size: var(--text-sm);
+      line-height: var(--leading-normal);
+    }
+
+    // First text block right after the speaker — tighten so the name reads
+    // as attribution, not a stacked element.
+    .message__stream > .message-text:first-child {
+      margin-top: calc(-1 * var(--space-2));
+    }
+  }
+
+  // ——— System / error pill ———
   &--system {
     align-self: center;
     max-width: 100%;
@@ -110,11 +170,12 @@
 }
 
 // ——— Typing / Streaming Indicator ———
+// Indented to line up with the assistant transcript's content column.
 .chat__typing {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-6);
+  padding-left: calc(22px + var(--space-3));
   font-size: var(--text-xs);
   color: var(--text-muted);
 }
@@ -158,9 +219,9 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
+  padding-left: calc(22px + var(--space-3));
   font-size: var(--text-xs);
   color: var(--accent-primary);
-  padding: var(--space-2) 0;
 
   &::before {
     content: '';
@@ -171,3 +232,7 @@
     animation: badge-pulse 1.5s ease-in-out infinite;
   }
 }
+
+// ——— Idle state no longer renders a marker —
+// The idle signal is now carried by the inline composer appearing in place
+// of the working panel. See .composer / .working in the chat pages.

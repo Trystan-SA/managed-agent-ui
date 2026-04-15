@@ -4,6 +4,7 @@
   import { theme } from '$lib/stores/theme';
   import favicon from '$lib/assets/favicon.svg';
   import Nav from '$components/Nav.svelte';
+  import Toaster from '$components/Toaster.svelte';
 
   const { data, children } = $props();
 
@@ -24,4 +25,6 @@
   <main class={pageClass}>
     {@render children()}
   </main>
+
+  <Toaster />
 </div>

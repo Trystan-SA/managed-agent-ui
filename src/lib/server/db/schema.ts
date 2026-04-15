@@ -12,6 +12,10 @@ export const users = pgTable('users', {
   password: text('password').notNull(),
   role: text('role').notNull().default('member'),
   mustResetPassword: boolean('must_reset_password').notNull().default(false),
+  // Anthropic-side vault ID (vlt_*). Lazily populated on first MCP-related
+  // action. May be cleared if the vault is deleted/archived externally — the
+  // user-vault helper transparently recreates it.
+  vaultId: text('vault_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull()
 });
@@ -107,6 +111,7 @@ export const userPreferences = pgTable('user_preferences', {
 export const scheduledTasks = pgTable('scheduled_tasks', {
   id: uuid('id').defaultRandom().primaryKey(),
   agentId: text('agent_id').notNull(),
+  environmentId: text('environment_id'),
   promptTemplate: text('prompt_template').notNull(),
   cronExpression: text('cron_expression').notNull(),
   schedulePreset: text('schedule_preset').notNull(),
@@ -142,5 +147,33 @@ export const taskEditHistory = pgTable('task_edit_history', {
   taskId: uuid('task_id').references(() => scheduledTasks.id, { onDelete: 'cascade' }).notNull(),
   editedBy: uuid('edited_by').references(() => users.id, { onDelete: 'cascade' }).notNull(),
   changes: jsonb('changes').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull()
+});
+// === OAuth (for MCP services that use OAuth instead of static bearer) ===
+
+// Admin-configured OAuth client credentials per registered service. The
+// secrets are AES-256-GCM encrypted at rest (see crypto.ts), the same path used
+// for api_keys + smtp_settings.
+export const oauthProviderConfigs = pgTable('oauth_provider_configs', {
+  // The serviceId from src/lib/mcp-registry.ts; one config per service.
+  serviceId: text('service_id').primaryKey(),
+  encryptedClientId: bytea('encrypted_client_id').notNull(),
+  clientIdIv: bytea('client_id_iv').notNull(),
+  encryptedClientSecret: bytea('encrypted_client_secret').notNull(),
+  clientSecretIv: bytea('client_secret_iv').notNull(),
+  // Optional scope override. NULL means use the service's default scopes.
+  scopes: text('scopes'),
+  updatedBy: uuid('updated_by').references(() => users.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull()
+});
+
+// Short-lived CSRF state tokens for OAuth redirect flows. Cleaned up
+// opportunistically on each lookup.
+export const oauthStates = pgTable('oauth_states', {
+  state: text('state').primaryKey(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull(),
+  serviceId: text('service_id').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull()
 });
