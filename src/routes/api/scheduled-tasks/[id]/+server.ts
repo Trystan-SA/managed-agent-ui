@@ -41,6 +41,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 
   const body = await request.json() as {
     agentId?: string;
+    environmentId?: string;
     promptTemplate?: string;
     schedulePreset?: string;
     timezone?: string;
@@ -57,6 +58,9 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 
   if (body.agentId !== undefined && body.agentId !== existing.agentId) {
     changes.agentId = { from: existing.agentId, to: body.agentId };
+  }
+  if (body.environmentId !== undefined && body.environmentId !== existing.environmentId) {
+    changes.environmentId = { from: existing.environmentId, to: body.environmentId };
   }
   if (body.promptTemplate !== undefined && body.promptTemplate !== existing.promptTemplate) {
     changes.promptTemplate = { from: existing.promptTemplate, to: body.promptTemplate };
@@ -112,6 +116,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
     .update(scheduledTasks)
     .set({
       agentId: body.agentId ?? existing.agentId,
+      environmentId: body.environmentId ?? existing.environmentId,
       promptTemplate: body.promptTemplate ?? existing.promptTemplate,
       cronExpression: newCronExpression,
       schedulePreset: newPreset,

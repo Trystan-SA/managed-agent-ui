@@ -13,6 +13,6 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/src/lib/server/db/schema.ts ./src/lib/server/db/schema.ts
-COPY docker-entrypoint.sh ./
+COPY docker/docker-entrypoint.sh ./
 EXPOSE 3000
 ENTRYPOINT ["./docker-entrypoint.sh"]

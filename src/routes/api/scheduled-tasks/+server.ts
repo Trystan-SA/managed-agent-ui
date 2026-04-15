@@ -30,6 +30,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   const body = await request.json() as {
     agentId?: string;
+    environmentId?: string;
     promptTemplate?: string;
     schedulePreset?: string;
     timezone?: string;
@@ -40,10 +41,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     dayOfMonth?: number;
   };
 
-  const { agentId, promptTemplate, schedulePreset, timezone, sessionMode, hour, minute, dayOfWeek, dayOfMonth } = body;
+  const { agentId, environmentId, promptTemplate, schedulePreset, timezone, sessionMode, hour, minute, dayOfWeek, dayOfMonth } = body;
 
-  if (!agentId || !promptTemplate || !schedulePreset) {
-    return json({ error: 'Missing required fields: agentId, promptTemplate, schedulePreset' }, { status: 400 });
+  if (!agentId || !environmentId || !promptTemplate || !schedulePreset) {
+    return json({ error: 'Missing required fields: agentId, environmentId, promptTemplate, schedulePreset' }, { status: 400 });
   }
 
   const cronExpression = buildCronExpression(schedulePreset, hour, minute, dayOfWeek, dayOfMonth);
@@ -54,6 +55,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     .insert(scheduledTasks)
     .values({
       agentId,
+      environmentId,
       promptTemplate,
       cronExpression,
       schedulePreset,

@@ -4,7 +4,7 @@
 	"version": "0.0.1",
 	"type": "module",
 	"scripts": {
-		"dev": "docker compose -f docker-compose.dev.yml up --build",
+		"dev": "docker compose --env-file .env -f docker/docker-compose.dev.yml up --build",
 		"dev:local": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",

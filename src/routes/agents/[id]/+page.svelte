@@ -8,7 +8,7 @@
 
   const agent: Record<string, unknown> = data.agent;
   const modelId: string = typeof agent.model === 'string' ? agent.model : (agent.model as Record<string, unknown>)?.id as string ?? '';
-  const description: string = (agent.description ?? agent.system ?? '') as string;
+  const description: string = (agent.system ?? agent.description ?? '') as string;
   const isArchived = !!agent.archived_at;
 
   function formatDate(dateStr: string): string {
@@ -16,11 +16,6 @@
       month: 'short', day: 'numeric', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
-  }
-
-  function truncate(text: string, max: number): string {
-    if (!text || text.length <= max) return text || '-';
-    return text.slice(0, max) + '...';
   }
 
   function getToolNames(): { enabled: string[]; disabled: string[] } {
@@ -122,7 +117,6 @@
 
     <div class="title-row">
       <h1 class="title-row__name">{agent.name}</h1>
-      <span class="pill pill--version">v{agent.version ?? 1}</span>
       <span class="pill pill--model" data-tier={getModelTier(modelId)}>{getModelLabel(modelId)}</span>
       {#if isArchived}
         <span class="pill pill--archived">Archived</span>
@@ -222,10 +216,6 @@
           <span class="meta-item__label">Model</span>
           <span class="meta-item__value">{modelId}</span>
         </div>
-        <div class="meta-item">
-          <span class="meta-item__label">Version</span>
-          <span class="meta-item__value">{agent.version ?? 1}</span>
-        </div>
       </div>
     </section>
   </div>
@@ -290,11 +280,16 @@
                     <span class="sched-detail__label">Recent Executions</span>
                     {#each sched.executions as exec (exec.id)}
                       <div class="exec-row">
-                        <span class="exec-row__status" class:exec-row__status--completed={exec.status === 'completed'} class:exec-row__status--failed={exec.status === 'failed'} class:exec-row__status--running={exec.status === 'running'}>
-                          {exec.status}
-                        </span>
-                        <span class="exec-row__date">{formatDate(String(exec.startedAt))}</span>
-                        <span class="exec-row__duration">{formatDuration(exec.durationMs)}</span>
+                        <div class="exec-row__main">
+                          <span class="exec-row__status" class:exec-row__status--completed={exec.status === 'completed'} class:exec-row__status--failed={exec.status === 'failed'} class:exec-row__status--running={exec.status === 'running'}>
+                            {exec.status}
+                          </span>
+                          <span class="exec-row__date">{formatDate(String(exec.startedAt))}</span>
+                          <span class="exec-row__duration">{formatDuration(exec.durationMs)}</span>
+                        </div>
+                        {#if exec.status === 'failed' && exec.error}
+                          <p class="exec-row__error" title={exec.error}>{exec.error}</p>
+                        {/if}
                       </div>
                     {/each}
                   </div>
@@ -309,36 +304,6 @@
     </section>
   {/if}
 
-  {#if data.versions.length > 1}
-    <section class="versions">
-      <h2 class="versions__title">Version History</h2>
-      <div class="versions__list">
-        {#each data.versions as ver, i (ver.version)}
-          {@const verDesc = ver.description ?? ver.system ?? ''}
-          <div class="version-row" class:version-row--current={i === 0}>
-            <div class="version-row__marker">
-              <span class="version-row__dot"></span>
-              {#if i < data.versions.length - 1}
-                <span class="version-row__line"></span>
-              {/if}
-            </div>
-            <div class="version-row__content">
-              <div class="version-row__header">
-                <span class="version-row__label">v{ver.version}</span>
-                {#if i === 0}
-                  <span class="pill pill--version" style="font-size: 10px;">Current</span>
-                {/if}
-                <span class="version-row__date">{formatDate((ver.updated_at ?? ver.created_at) as string)}</span>
-              </div>
-              {#if verDesc}
-                <p class="version-row__prompt">{truncate(verDesc, 120)}</p>
-              {/if}
-            </div>
-          </div>
-        {/each}
-      </div>
-    </section>
-  {/if}
 </div>
 
 <style lang="scss">
@@ -387,7 +352,6 @@
     border-radius: var(--radius-full);
     white-space: nowrap;
 
-    &--version { background: var(--accent-info-muted); color: var(--accent-info); }
     &--model {
       &[data-tier='balanced'] { background: var(--accent-primary-muted); color: var(--accent-primary); }
       &[data-tier='premium'] { background: var(--accent-warning-muted); color: var(--accent-warning); }
@@ -539,7 +503,7 @@
     &--off { background: var(--surface-2); color: var(--text-muted); text-decoration: line-through; opacity: 0.6; }
   }
 
-  .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
+  .meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-5); }
 
   .meta-item {
     display: flex;
@@ -549,29 +513,6 @@
     &__label { font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
     &__value { font-size: var(--text-sm); color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     code { font-family: var(--font-mono); font-size: var(--text-xs); user-select: all; }
-  }
-
-  .versions {
-    margin-top: var(--space-8);
-
-    &__title { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-primary); margin-bottom: var(--space-5); }
-    &__list { display: flex; flex-direction: column; }
-  }
-
-  .version-row {
-    display: flex;
-    gap: var(--space-4);
-    min-height: 48px;
-
-    &__marker { display: flex; flex-direction: column; align-items: center; width: 16px; flex-shrink: 0; padding-top: 5px; }
-    &__dot { width: 8px; height: 8px; border-radius: var(--radius-full); background: var(--border-strong); flex-shrink: 0; }
-    &--current .version-row__dot { background: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-primary-muted); }
-    &__line { width: 1px; flex: 1; background: var(--border-subtle); margin-top: var(--space-1); }
-    &__content { flex: 1; padding-bottom: var(--space-5); }
-    &__header { display: flex; align-items: center; gap: var(--space-3); }
-    &__label { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-primary); font-variant-numeric: tabular-nums; }
-    &__date { font-size: var(--text-xs); color: var(--text-muted); margin-left: auto; }
-    &__prompt { font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-2); font-family: var(--font-mono); line-height: var(--leading-normal); }
   }
 
   .schedules-section {
@@ -711,12 +652,18 @@
 
   .exec-row {
     display: flex;
-    align-items: center;
-    gap: var(--space-4);
+    flex-direction: column;
+    gap: var(--space-2);
     padding: var(--space-3) var(--space-4);
     background: var(--surface-0);
     border-radius: var(--radius-sm);
     font-size: var(--text-xs);
+
+    &__main {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
 
     &__status {
       font-weight: var(--weight-semibold);
@@ -730,6 +677,20 @@
 
     &__date { color: var(--text-muted); }
     &__duration { color: var(--text-muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+
+    &__error {
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      background: var(--accent-danger-muted);
+      color: var(--accent-danger);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      line-height: var(--leading-relaxed);
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      max-height: 6.5em;
+      overflow-y: auto;
+    }
   }
 
   @media (max-width: 640px) {

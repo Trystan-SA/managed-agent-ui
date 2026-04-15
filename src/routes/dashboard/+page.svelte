@@ -1,33 +1,50 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
-  import ChatMessage from '$components/ChatMessage.svelte';
+  import { onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import Badge from '$components/Badge.svelte';
+  import ChatView, { type ChatSession } from '$components/ChatView.svelte';
   import { apiFetch } from '$lib/utils/api';
-  import { applyEventToMessages, type ContentBlock } from '$lib/utils/chatEvents';
 
   const { data } = $props();
 
   // --- Types ---
   interface Session { id: string; title?: string; name?: string; status?: string; agent_id?: string; created_at?: string; [key: string]: unknown; }
-  interface Agent { id: string; name: string; model: string | Record<string, unknown>; [key: string]: unknown; }
+  interface McpServerRef { name: string; type: 'url'; url: string; }
+  interface Agent { id: string; name: string; model: string | Record<string, unknown>; mcp_servers?: McpServerRef[]; [key: string]: unknown; }
   interface Environment { id: string; name: string; config?: { networking?: { type?: string } }; [key: string]: unknown; }
 
   // --- Session list (sidebar) ---
-  let localSessions: Session[] = $derived([...(data.sessions as Session[])]);
-  const activeSessions = $derived(localSessions.filter(s => s.status === 'running'));
-  const pastSessions = $derived(localSessions.filter(s => s.status !== 'running'));
+  let localSessions: Session[] = $state([...(data.sessions as Session[])]);
+  const activeSessions = $derived(localSessions.filter((s) => s.status === 'running'));
+  const pastSessions = $derived(localSessions.filter((s) => s.status !== 'running'));
 
   // --- Agents / Environments (for new chat form) ---
   const agents = $derived((data.agents ?? []) as Agent[]);
   const environments = $derived((data.environments ?? []) as Environment[]);
 
-  // --- Current chat state ---
-  let currentSessionId = $state<string | null>(null);
-  let currentSession = $state<Session | null>(null);
-  const messages: { role: 'user' | 'assistant'; content: ContentBlock[] }[] = $state([]);
-  let status: string = $state('idle');
-  let inputText: string = $state('');
-  let evtSource: EventSource | null = $state(null);
+  // --- API key gate ---
+  const apiKeyConfigured = $derived(data.apiKeyConfigured !== false);
+  const isAdmin = $derived(data.userRole === 'admin');
+
+  // --- User connections (for MCP status row on agent selection) ---
+  const connectedMcpUrls = new SvelteSet<string>();
+  let connectionsLoaded = $state(false);
+
+  async function loadConnections() {
+    try {
+      const res = await apiFetch<{ services: { service: { mcpServerUrl: string }; connected: boolean }[] }>(
+        '/api/connections'
+      );
+      connectedMcpUrls.clear();
+      for (const s of res.services) {
+        if (s.connected) connectedMcpUrls.add(s.service.mcpServerUrl);
+      }
+    } catch {
+      // Non-fatal — the status row just won't appear.
+    } finally {
+      connectionsLoaded = true;
+    }
+  }
 
   // --- New chat form ---
   let selectedAgentId = $state('');
@@ -37,30 +54,21 @@
     if (!selectedAgentId && agents.length > 0) selectedAgentId = agents[0].id;
   });
 
-  // --- Scroll ---
-  let scrollContainer: HTMLDivElement | undefined = $state(undefined);
-  let shouldAutoScroll: boolean = $state(true);
+  const selectedAgent = $derived(agents.find((a) => a.id === selectedAgentId));
+  const selectedAgentMcpStatus = $derived(
+    (selectedAgent?.mcp_servers ?? []).map((srv) => ({
+      name: srv.name,
+      url: srv.url,
+      connected: connectedMcpUrls.has(srv.url)
+    }))
+  );
+  const hasMissingMcp = $derived(selectedAgentMcpStatus.some((s) => !s.connected));
 
-  function checkScrollPosition() {
-    if (!scrollContainer) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-    shouldAutoScroll = scrollHeight - scrollTop - clientHeight < 80;
-  }
+  // --- Current chat state (minimal; ChatView owns messages + streaming) ---
+  let currentSessionId = $state<string | null>(null);
+  let currentSession = $state<Session | null>(null);
+  let status = $state<string>('idle');
 
-  function scrollToBottom() {
-    if (scrollContainer && shouldAutoScroll) {
-      requestAnimationFrame(() => { scrollContainer!.scrollTop = scrollContainer!.scrollHeight; });
-    }
-  }
-
-  $effect(() => {
-    void messages.length;
-    if (messages.length > 0) void messages[messages.length - 1].content.length;
-    scrollToBottom();
-  });
-
-  // --- Derived ---
-  const isRunning = $derived(status === 'running');
   const hasActiveChat = $derived(currentSessionId !== null);
   const chatTitle = $derived(
     currentSession
@@ -79,160 +87,59 @@
 
   function getAgentName(agentId: string | undefined): string {
     if (!agentId) return '';
-    const agent = agents.find(a => a.id === agentId);
+    const agent = agents.find((a) => a.id === agentId);
     return agent?.name ?? agentId.slice(0, 10);
-  }
-
-  function getModelId(agent: Agent): string {
-    return typeof agent.model === 'string' ? agent.model : (agent.model?.id as string) ?? '';
   }
 
   function getNetworkingType(env: Environment): string {
     return env.config?.networking?.type ?? 'unrestricted';
   }
 
-  // --- Session selection ---
-  async function selectSession(session: Session) {
-    closeStream();
-    messages.length = 0;
+  // --- Session lifecycle ---
+  function selectSession(session: Session) {
     currentSessionId = session.id;
     currentSession = session;
     status = (session.status as string) ?? 'idle';
-
-    // Load conversation history from Anthropic — fetched fresh each time since
-    // idle sessions may have been advanced by other clients.
-    try {
-      const { events } = await apiFetch<{ events: ContentBlock[] }>(`/api/sessions/${session.id}/events`);
-      // Guard against a race if the user quickly switched to another session.
-      if (currentSessionId !== session.id) return;
-      for (const ev of events) {
-        applyEventToMessages(messages, ev);
-      }
-      shouldAutoScroll = true;
-      scrollToBottom();
-    } catch (err) {
-      if (currentSessionId !== session.id) return;
-      messages.push({
-        role: 'assistant',
-        content: [{ type: 'text', text: `Failed to load history: ${err instanceof Error ? err.message : 'Unknown error'}` }]
-      });
-    }
   }
 
   function startNewChat() {
-    closeStream();
-    messages.length = 0;
     currentSessionId = null;
     currentSession = null;
     status = 'idle';
   }
 
-  // --- SSE Streaming ---
-  function openStream(sessionId: string) {
-    closeStream();
-    const src = new EventSource(`/api/sessions/${sessionId}/stream`);
-    evtSource = src;
-    src.onmessage = (event) => {
-      try { handleStreamEvent(JSON.parse(event.data)); }
-      catch { /* no-op */ }
-    };
-    src.onerror = () => {
-      if (src.readyState === EventSource.CLOSED) {
-        closeStream();
-        if (status === 'running') status = 'idle';
-        updateSessionStatus(sessionId, 'idle');
-      }
-    };
+  // ChatView invokes this when the user sends their first message without a
+  // session — we create one via the API and hand it back.
+  async function createSession(): Promise<ChatSession | null> {
+    if (!selectedAgentId) return null;
+    const body: Record<string, unknown> = { agent: selectedAgentId };
+    if (selectedEnvId) body.environment_id = selectedEnvId;
+    return await apiFetch<Session>('/api/sessions', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
   }
 
-  function closeStream() {
-    if (evtSource) { evtSource.close(); evtSource = null; }
+  function onSessionCreated(session: ChatSession) {
+    currentSessionId = session.id;
+    currentSession = session as Session;
+    localSessions = [session as Session, ...localSessions];
   }
 
-  function updateSessionStatus(sessionId: string, newStatus: string) {
-    const idx = localSessions.findIndex(s => s.id === sessionId);
-    if (idx !== -1) {
-      localSessions[idx] = { ...localSessions[idx], status: newStatus };
-    }
-  }
-
-  function handleStreamEvent(eventData: ContentBlock) {
-    // The user message was pushed optimistically in sendMessage(); skip the
-    // server echo so we don't duplicate it.
-    if (eventData.type === 'user.message') return;
-    if (eventData.type === 'session.status_idle') {
-      status = 'idle';
-      if (currentSessionId) updateSessionStatus(currentSessionId, 'idle');
-      closeStream();
-      return;
-    }
-    if (eventData.type === 'session.status_running') {
-      status = 'running';
-      if (currentSessionId) updateSessionStatus(currentSessionId, 'running');
-      return;
-    }
-    if (applyEventToMessages(messages, eventData)) scrollToBottom();
-  }
-
-  // --- Send message ---
-  async function sendMessage() {
-    const text = inputText.trim();
-    if (!text || isRunning) return;
-
-    // If no session yet, create one first
-    if (!currentSessionId) {
-      if (!selectedAgentId) return;
-      try {
-        const body: Record<string, unknown> = { agent: selectedAgentId };
-        if (selectedEnvId) body.environment_id = selectedEnvId;
-
-        const session = await apiFetch<Session>('/api/sessions', {
-          method: 'POST',
-          body: JSON.stringify(body)
-        });
-
-        currentSessionId = session.id;
-        currentSession = session;
-        localSessions = [session, ...localSessions];
-      } catch (err) {
-        messages.push({ role: 'assistant', content: [{ type: 'text', text: `Error creating session: ${err instanceof Error ? err.message : 'Unknown error'}` }] });
-        return;
+  function onStatusChange(next: string) {
+    status = next;
+    // Reflect the live status on the sidebar badge as well.
+    if (currentSessionId) {
+      const idx = localSessions.findIndex((s) => s.id === currentSessionId);
+      if (idx !== -1 && localSessions[idx].status !== next) {
+        localSessions[idx] = { ...localSessions[idx], status: next };
       }
     }
-
-    messages.push({ role: 'user', content: [{ type: 'text', text }] });
-    inputText = '';
-    status = 'running';
-    shouldAutoScroll = true;
-    scrollToBottom();
-
-    try {
-      await apiFetch(`/api/sessions/${currentSessionId}/events`, {
-        method: 'POST',
-        body: JSON.stringify({ events: [{ type: 'user.message', content: [{ type: 'text', text }] }] })
-      });
-      openStream(currentSessionId);
-    } catch (err) {
-      status = 'idle';
-      messages.push({ role: 'assistant', content: [{ type: 'text', text: `Error: ${err instanceof Error ? err.message : 'Failed to send message'}` }] });
-    }
   }
 
-  async function interrupt() {
-    if (!currentSessionId) return;
-    try {
-      await apiFetch(`/api/sessions/${currentSessionId}/events`, {
-        method: 'POST',
-        body: JSON.stringify({ events: [{ type: 'user.interrupt' }] })
-      });
-    } catch { /* no-op */ }
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  }
-
-  onDestroy(() => { closeStream(); });
+  onMount(() => {
+    if (apiKeyConfigured) void loadConnections();
+  });
 </script>
 
 <svelte:head>
@@ -245,7 +152,12 @@
     <div class="sidebar__header">Conversations</div>
 
     <div class="sidebar__new">
-      <button class="sidebar__new-btn" onclick={startNewChat} class:sidebar__new-btn--active={!hasActiveChat}>
+      <button
+        class="sidebar__new-btn"
+        onclick={startNewChat}
+        class:sidebar__new-btn--active={!hasActiveChat}
+        disabled={!apiKeyConfigured}
+      >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
@@ -304,122 +216,131 @@
 
   <!-- Main chat area -->
   <main class="main">
-    <!-- Header -->
-    <header class="main__header">
-      <div class="main__header-left">
-        <h2 class="main__header-title">{chatTitle}</h2>
-        {#if hasActiveChat}
-          <Badge {status} size="sm" />
-        {/if}
-      </div>
-      <div class="main__header-right">
-        {#if isRunning}
-          <button class="main__stop" onclick={interrupt}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2" /></svg>
-            Stop
-          </button>
-        {/if}
-      </div>
-    </header>
-
-    <!-- Messages / Welcome -->
-    <div class="main__messages" bind:this={scrollContainer} onscroll={checkScrollPosition}>
-      {#if !hasActiveChat && messages.length === 0}
-        <!-- New chat: agent selector -->
-        <div class="welcome">
-          <div class="welcome__icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    {#if !apiKeyConfigured}
+      <div class="no-key">
+        <div class="no-key__card">
+          <div class="no-key__icon">
+            <svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.5 1.5a3.5 3.5 0 0 1 .885 6.889L11 8.5l-1 1-1 1-1.5.5-.5 1.5H5v1.5H3.5V13H2v-1.5l5.111-5.111A3.5 3.5 0 0 1 10.5 1.5z" />
+              <circle cx="11" cy="5" r="1" fill="currentColor" />
             </svg>
           </div>
-          <h3 class="welcome__title">Start a conversation</h3>
-          <p class="welcome__desc">Select an agent and send your first message.</p>
-
-          <div class="welcome__form">
-            <div class="welcome__field">
-              <label class="welcome__label" for="agent-select">Agent</label>
-              {#if agents.length === 0}
-                <p class="welcome__hint">No agents available. <a href="/agents/new">Create one</a> first.</p>
-              {:else}
-                <select id="agent-select" class="welcome__select" bind:value={selectedAgentId}>
-                  {#each agents as agent (agent.id)}
-                    <option value={agent.id}>{agent.name} — {getModelId(agent)}</option>
-                  {/each}
-                </select>
-              {/if}
-            </div>
-
-            <div class="welcome__field">
-              <label class="welcome__label" for="env-select">
-                Environment
-                <span class="welcome__optional">optional</span>
-              </label>
-              {#if environments.length === 0}
-                <p class="welcome__hint">No environments. Agent will run without one.</p>
-              {:else}
-                <select id="env-select" class="welcome__select" bind:value={selectedEnvId}>
-                  <option value="">None</option>
-                  {#each environments as env (env.id)}
-                    <option value={env.id}>{env.name} — {getNetworkingType(env)}</option>
-                  {/each}
-                </select>
-              {/if}
-            </div>
-          </div>
+          <h3 class="no-key__title">API key required</h3>
+          {#if isAdmin}
+            <p class="no-key__desc">Add your Anthropic API key in Settings to start creating agents and chatting.</p>
+            <a class="no-key__cta" href="/settings">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 8h10M9 4l4 4-4 4" />
+              </svg>
+              Configure API key
+            </a>
+          {:else}
+            <p class="no-key__desc">Your admin hasn't configured an Anthropic API key yet. Contact them to get started.</p>
+          {/if}
         </div>
-      {:else if hasActiveChat && messages.length === 0}
-        <!-- Existing session, no messages yet -->
-        <div class="welcome">
-          <div class="welcome__icon">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <p class="welcome__desc">Send a message to continue the conversation.</p>
+      </div>
+    {:else}
+      <header class="main__header">
+        <div class="main__header-left">
+          <h2 class="main__header-title">{chatTitle}</h2>
+          {#if hasActiveChat}
+            <Badge {status} size="sm" />
+          {/if}
         </div>
-      {/if}
+      </header>
 
-      {#each messages as msg, index (index)}
-        <ChatMessage role={msg.role} content={msg.content} />
-      {/each}
-
-      {#if isRunning}
-        {@const lastMsg = messages[messages.length - 1]}
-        {#if !lastMsg || lastMsg.role !== 'assistant' || lastMsg.content.length === 0}
-          <div class="chat__typing">
-            <div class="chat__typing-dots"><span></span><span></span><span></span></div>
-            Agent is thinking...
-          </div>
-        {:else}
-          <div class="chat__streaming">Streaming...</div>
-        {/if}
-      {/if}
-    </div>
-
-    <!-- Input bar -->
-    <div class="main__input">
-      <div class="main__input-inner">
-        <textarea
-          class="main__textarea"
-          placeholder={isRunning ? 'Agent is responding...' : hasActiveChat ? 'Type a message...' : 'Type your first message...'}
-          bind:value={inputText}
-          onkeydown={handleKeydown}
-          disabled={isRunning || (!hasActiveChat && !selectedAgentId)}
-          rows="1"
-        ></textarea>
-        <button
-          class="main__send"
-          onclick={sendMessage}
-          disabled={isRunning || !inputText.trim() || (!hasActiveChat && !selectedAgentId)}
-          aria-label="Send message"
+      <div class="main__view">
+        <ChatView
+          sessionId={currentSessionId}
+          {createSession}
+          {onSessionCreated}
+          {onStatusChange}
+          canSend={hasActiveChat || !!selectedAgentId}
+          composerPlaceholder={hasActiveChat ? 'Continue the conversation…' : 'Type your first message…'}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
-        </button>
+          {#snippet emptyState()}
+            {#if hasActiveChat}
+              <div class="welcome">
+                <div class="welcome__icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <p class="welcome__desc">Send a message to continue the conversation.</p>
+              </div>
+            {:else}
+              <div class="welcome">
+                <div class="welcome__icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </div>
+                <h3 class="welcome__title">Start a conversation</h3>
+                <p class="welcome__desc">Select an agent and send your first message.</p>
+
+                <div class="welcome__form">
+                  <div class="welcome__field">
+                    <label class="welcome__label" for="agent-select">Agent</label>
+                    {#if agents.length === 0}
+                      <p class="welcome__hint">No agents available. <a href="/agents/new">Create one</a> first.</p>
+                    {:else}
+                      <select id="agent-select" class="welcome__select" bind:value={selectedAgentId}>
+                        {#each agents as agent (agent.id)}
+                          <option value={agent.id}>{agent.name}</option>
+                        {/each}
+                      </select>
+                    {/if}
+                  </div>
+
+                  {#if connectionsLoaded && selectedAgentMcpStatus.length > 0}
+                    <div class="welcome__field">
+                      <label class="welcome__label">
+                        MCP servers
+                        {#if hasMissingMcp}
+                          <span class="welcome__optional welcome__optional--warn">action needed</span>
+                        {/if}
+                      </label>
+                      <ul class="mcp-status">
+                        {#each selectedAgentMcpStatus as srv (srv.url)}
+                          <li class="mcp-status__row" class:mcp-status__row--ok={srv.connected}>
+                            {#if srv.connected}
+                              <span class="mcp-status__dot mcp-status__dot--ok" aria-hidden="true"></span>
+                              <span class="mcp-status__name">{srv.name}</span>
+                              <span class="mcp-status__hint">connected</span>
+                            {:else}
+                              <span class="mcp-status__dot mcp-status__dot--warn" aria-hidden="true"></span>
+                              <span class="mcp-status__name">{srv.name}</span>
+                              <a class="mcp-status__action" href="/connections">Connect →</a>
+                            {/if}
+                          </li>
+                        {/each}
+                      </ul>
+                    </div>
+                  {/if}
+
+                  <div class="welcome__field">
+                    <label class="welcome__label" for="env-select">
+                      Environment
+                      <span class="welcome__optional">optional</span>
+                    </label>
+                    {#if environments.length === 0}
+                      <p class="welcome__hint">No environments. Agent will run without one.</p>
+                    {:else}
+                      <select id="env-select" class="welcome__select" bind:value={selectedEnvId}>
+                        <option value="">None</option>
+                        {#each environments as env (env.id)}
+                          <option value={env.id}>{env.name} — {getNetworkingType(env)}</option>
+                        {/each}
+                      </select>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            {/if}
+          {/snippet}
+        </ChatView>
       </div>
-    </div>
+    {/if}
   </main>
 </div>
 
@@ -597,92 +518,13 @@
       text-overflow: ellipsis;
     }
 
-    &__header-right {
-      flex-shrink: 0;
-    }
-
-    &__stop {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-2);
-      padding: var(--space-2) var(--space-4);
-      font-family: var(--font-sans);
-      font-size: var(--text-xs);
-      font-weight: var(--weight-semibold);
-      color: #fff;
-      background: var(--accent-danger);
-      border: none;
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      transition: background var(--transition-fast);
-      &:hover { background: var(--accent-danger-hover); }
-    }
-
-    &__messages {
+    &__view {
       flex: 1;
       min-height: 0;
-      overflow-y: auto;
-      padding: var(--space-6);
       display: flex;
       flex-direction: column;
-      gap: var(--space-6);
-      scrollbar-width: thin;
-      scrollbar-color: var(--border-strong) transparent;
-    }
-
-    &__input {
-      flex-shrink: 0;
-      border-top: 1px solid var(--border-default);
-      background: var(--surface-1);
-      padding: var(--space-4) var(--space-6);
-    }
-
-    &__input-inner {
-      display: flex;
-      align-items: flex-end;
-      gap: var(--space-3);
-      max-width: 720px;
-      margin: 0 auto;
-    }
-
-    &__textarea {
-      flex: 1;
-      min-height: 40px;
-      max-height: 160px;
-      resize: none;
-      padding: var(--space-3) var(--space-5);
-      font-family: var(--font-sans);
-      font-size: var(--text-sm);
-      color: var(--text-primary);
-      background: var(--surface-0);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-md);
-      outline: none;
-      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-
-      &::placeholder { color: var(--text-muted); }
-      &:hover { border-color: var(--border-strong); }
-      &:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-primary-muted); }
-      &:disabled { opacity: 0.5; cursor: not-allowed; }
-    }
-
-    &__send {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 40px;
-      height: 40px;
-      flex-shrink: 0;
-      padding: 0;
-      background: var(--accent-primary);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      transition: background var(--transition-fast);
-
-      &:hover { background: var(--accent-primary-hover); }
-      &:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+      // Parent-controlled column padding: cap at 820px, fall back to 16px.
+      --chat-view-padding: var(--space-8) max(var(--space-6), calc((100% - 820px) / 2)) var(--space-10);
     }
   }
 
@@ -775,6 +617,131 @@
         &:hover { color: var(--accent-primary-hover); }
       }
     }
+
+    &__optional--warn { color: var(--accent-warning); }
+  }
+
+  /* === MCP status row in welcome form === */
+  .mcp-status {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+
+    &__row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      background: var(--surface-1);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      font-size: var(--text-sm);
+    }
+
+    &__dot {
+      width: 8px;
+      height: 8px;
+      border-radius: var(--radius-full);
+      flex-shrink: 0;
+
+      &--ok { background: var(--accent-success); }
+      &--warn { background: var(--accent-warning); }
+    }
+
+    &__name {
+      flex: 1;
+      color: var(--text-primary);
+      font-weight: var(--weight-medium);
+    }
+
+    &__hint {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+    }
+
+    &__action {
+      font-size: var(--text-xs);
+      font-weight: var(--weight-medium);
+      color: var(--accent-primary);
+      text-decoration: none;
+      &:hover { text-decoration: underline; }
+    }
+  }
+
+  /* === No API key state === */
+  .no-key {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-10);
+
+    &__card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-3);
+      max-width: 420px;
+      padding: var(--space-10) var(--space-8);
+      background: var(--surface-1);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-lg);
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    &__icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border-radius: var(--radius-lg);
+      background: var(--accent-primary-muted);
+      color: var(--accent-primary);
+      margin-bottom: var(--space-2);
+    }
+
+    &__title {
+      font-size: var(--text-lg);
+      font-weight: var(--weight-semibold);
+      color: var(--text-primary);
+      margin: 0;
+    }
+
+    &__desc {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      line-height: var(--leading-normal);
+      margin: 0;
+    }
+
+    &__cta {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-top: var(--space-4);
+      padding: var(--space-3) var(--space-5);
+      font-family: var(--font-sans);
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      color: #fff;
+      background: var(--accent-primary);
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      transition: background var(--transition-fast);
+
+      &:hover { background: var(--accent-primary-hover); }
+    }
+  }
+
+  .sidebar__new-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 
   /* === Responsive === */

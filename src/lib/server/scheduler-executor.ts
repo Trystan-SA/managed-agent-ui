@@ -40,7 +40,8 @@ export async function executeTask(taskId: string): Promise<void> {
       runNumber: task.runCount + 1
     });
 
-    // Insert execution record
+    // Insert execution record up-front so any early validation failure
+    // (missing environment, etc.) is still persisted and surfaced in the UI.
     const [execution] = await db
       .insert(taskExecutions)
       .values({
@@ -53,31 +54,34 @@ export async function executeTask(taskId: string): Promise<void> {
 
     executionId = execution.id;
 
+    if (!task.environmentId) {
+      throw new Error('Task has no environment configured — edit the schedule to pick an environment.');
+    }
+
     // Create or resume session
     const client = await createAnthropicClient();
     let sessionId: string;
+
+    const createParams = {
+      agent: task.agentId,
+      environment_id: task.environmentId
+    } as Parameters<typeof client.beta.sessions.create>[0];
 
     if (task.sessionMode === 'continue_session' && task.activeSessionId) {
       try {
         const existing = await client.beta.sessions.retrieve(task.activeSessionId);
         if (existing.status === 'terminated') {
-          const session = await client.beta.sessions.create(
-            { agent: task.agentId } as Parameters<typeof client.beta.sessions.create>[0]
-          );
+          const session = await client.beta.sessions.create(createParams);
           sessionId = session.id;
         } else {
           sessionId = task.activeSessionId;
         }
       } catch {
-        const session = await client.beta.sessions.create(
-          { agent: task.agentId } as Parameters<typeof client.beta.sessions.create>[0]
-        );
+        const session = await client.beta.sessions.create(createParams);
         sessionId = session.id;
       }
     } else {
-      const session = await client.beta.sessions.create(
-        { agent: task.agentId } as Parameters<typeof client.beta.sessions.create>[0]
-      );
+      const session = await client.beta.sessions.create(createParams);
       sessionId = session.id;
     }
 

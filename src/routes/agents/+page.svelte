@@ -51,7 +51,7 @@
   }
 
   function getDescription(agent: Record<string, unknown>): string {
-    return (agent.description ?? agent.system ?? '') as string;
+    return (agent.system ?? agent.description ?? '') as string;
   }
 
   const activeAgents = $derived(data.agents.filter((a: Record<string, unknown>) => !a.archived_at));
@@ -94,7 +94,6 @@
         <a href="/agents/{agent.id}" class="agent-card">
           <div class="agent-card__top">
             <span class="agent-card__name">{agent.name}</span>
-            <span class="agent-card__version">v{agent.version ?? 1}</span>
           </div>
 
           {#if desc}
@@ -255,17 +254,6 @@
       text-overflow: ellipsis;
       white-space: nowrap;
       min-width: 0;
-    }
-
-    &__version {
-      flex-shrink: 0;
-      font-size: 11px;
-      font-weight: var(--weight-semibold);
-      font-variant-numeric: tabular-nums;
-      color: var(--accent-info);
-      background: var(--accent-info-muted);
-      padding: 1px 7px;
-      border-radius: var(--radius-full);
     }
 
     &__status-archived {
