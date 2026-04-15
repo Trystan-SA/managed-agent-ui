@@ -4,13 +4,16 @@ Deploy, monitor, and chat with autonomous Claude agents — end-to-end encrypted
 
 ## Features
 
-- **Agent Management** — Create, configure, and version your managed agents
-- **Environment Control** — Manage sandbox environments with networking and package settings
-- **Session Tracking** — Monitor active and past agent sessions
-- **Real-time Chat** — Stream agent responses via SSE with a live chat interface
-- **Multi-user Auth** — First user becomes admin; each user manages their own API keys
-- **Encrypted API Keys** — AES-256-GCM encryption at rest, decrypted server-side only
-- **Dashboard Overview** — At-a-glance summary of agents, environments, and sessions
+- **Agent Management** — Create, configure, and version managed agents, with a sticky version-history panel on the edit page that restores any prior config in place
+- **Environment Control** — Manage sandbox environments with networking, package manager, and metadata settings
+- **Dashboard-as-Chat** — The dashboard is the primary chat surface: session list sidebar + embedded `ChatView` + new-chat form with live MCP status
+- **Real-time Chat** — Stream agent responses via SSE; inline composer with a Working panel + Cancel (`user.interrupt`) during agent turns
+- **MCP Connections** — Per-user connections to Linear, Notion, GitHub, Atlassian, Sentry, Stripe, and more; static-bearer tokens and OAuth 2.0 both supported. Credentials live in Anthropic vaults — the app stores only a pointer
+- **Scheduled Tasks (CRON)** — In-process cron scheduler runs agents on recurring triggers with rendered prompt templates; every run records its prompt, response, and duration
+- **Multi-user Auth** — First user becomes admin; additional users onboarded via email or manual-URL invites (48h expiry)
+- **Global API Key** — One admin-managed Anthropic API key, AES-256-GCM encrypted at rest, shared across all users
+- **Admin Panel** — User / invite / SMTP management and per-service OAuth client credentials, all in Settings
+- **Global Toasts** — Shared toaster system for success/error feedback across pages
 - **Self-hosted** — Run everything with a single `docker compose up`
 
 ## Prerequisites
@@ -83,11 +86,15 @@ Contributions are welcome! Please open an issue to discuss your idea before subm
 
 ## Architecture
 
-- **Frontend**: SvelteKit 5, SCSS
-- **Backend**: SvelteKit server routes, Drizzle ORM
+- **Frontend**: Svelte 5 + SvelteKit 2.57, SCSS design tokens
+- **Backend**: SvelteKit server routes (Node adapter), Drizzle ORM 0.45
 - **Database**: PostgreSQL 16
-- **Auth**: bcrypt passwords, in-memory sessions, AES-256-GCM encrypted API keys
-- **API**: Anthropic Claude API proxy with SSE streaming
+- **Auth**: bcrypt passwords, DB-backed sessions, AES-256-GCM encrypted secrets
+- **Anthropic API**: proxied through `/api/*`; SSE streaming for agent responses; `user.interrupt` for cancel
+- **MCP credentials**: stored in per-user Anthropic vaults (static bearer or OAuth 2.0); client never sees tokens after they're submitted
+- **Scheduler**: in-process `node-cron` with lock-based concurrency and stale-lock sweeping
+
+For the full design, see [`spec/`](./spec) — chaptered domain specifications starting from [1.0.0 Architecture](./spec/1.0.0-architecture.md).
 
 ## License
 
