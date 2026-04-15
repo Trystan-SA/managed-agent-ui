@@ -1,10 +1,12 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { untrack } from 'svelte';
   import ScheduleCard from '$components/ScheduleCard.svelte';
   import AgentMcpServers, { type McpServerRow } from '$components/AgentMcpServers.svelte';
 
   const { data } = $props();
-  const environments = (data?.environments ?? []) as Array<{ id: string; name?: string }>;
+  // Server-loaded data is a one-shot seed for the new-agent form.
+  const environments = untrack(() => (data?.environments ?? []) as Array<{ id: string; name?: string }>);
 
   interface ScheduleFormData {
     environmentId: string;
@@ -472,8 +474,13 @@ Make small, reviewable changes. Never refactor and add features in the same step
     {/if}
 
     {#if showConfirm}
-      <div class="confirm-backdrop" onclick={cancelApply} onkeydown={(e) => e.key === 'Escape' && cancelApply()} role="presentation">
-        <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+      <div
+        class="confirm-backdrop"
+        onclick={(e) => { if (e.target === e.currentTarget) cancelApply(); }}
+        onkeydown={(e) => e.key === 'Escape' && cancelApply()}
+        role="presentation"
+      >
+        <div class="confirm-modal" role="dialog" tabindex="-1">
           <p class="confirm-modal__text">
             Applying <strong>{pendingPreset?.label}</strong> will overwrite your current name and system prompt.
           </p>

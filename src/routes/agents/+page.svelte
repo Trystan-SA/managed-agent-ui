@@ -274,6 +274,7 @@
       line-height: var(--leading-normal);
       display: -webkit-box;
       -webkit-line-clamp: 2;
+      line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
       min-height: calc(var(--text-sm) * 2 * 1.5);

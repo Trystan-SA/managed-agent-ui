@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import Badge from '$components/Badge.svelte';
   import ChatView, { type ChatSession } from '$components/ChatView.svelte';
@@ -14,7 +14,8 @@
   interface Environment { id: string; name: string; config?: { networking?: { type?: string } }; [key: string]: unknown; }
 
   // --- Session list (sidebar) ---
-  let localSessions: Session[] = $state([...(data.sessions as Session[])]);
+  // Seed once from server data; local mutations (add/remove) own the list afterwards.
+  let localSessions: Session[] = $state(untrack(() => [...(data.sessions as Session[])]));
   const activeSessions = $derived(localSessions.filter((s) => s.status === 'running'));
   const pastSessions = $derived(localSessions.filter((s) => s.status !== 'running'));
 
@@ -294,12 +295,12 @@
 
                   {#if connectionsLoaded && selectedAgentMcpStatus.length > 0}
                     <div class="welcome__field">
-                      <label class="welcome__label">
+                      <div class="welcome__label">
                         MCP servers
                         {#if hasMissingMcp}
                           <span class="welcome__optional welcome__optional--warn">action needed</span>
                         {/if}
-                      </label>
+                      </div>
                       <ul class="mcp-status">
                         {#each selectedAgentMcpStatus as srv (srv.url)}
                           <li class="mcp-status__row" class:mcp-status__row--ok={srv.connected}>

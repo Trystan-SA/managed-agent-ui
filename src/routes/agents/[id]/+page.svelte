@@ -1,13 +1,19 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { untrack } from 'svelte';
   import { getPresetLabel } from '$lib/schedule-presets';
 
   const { data } = $props();
   let deleting = $state(false);
   let showDeleteConfirm = $state(false);
 
-  const agent: Record<string, unknown> = data.agent;
-  const modelId: string = typeof agent.model === 'string' ? agent.model : (agent.model as Record<string, unknown>)?.id as string ?? '';
+  // Server-loaded data is treated as a one-shot snapshot for this page;
+  // untrack() silences the `state_referenced_locally` warning.
+  const agent = untrack(() => data.agent as Record<string, unknown>);
+  const modelId: string =
+    typeof agent.model === 'string'
+      ? agent.model
+      : ((agent.model as Record<string, unknown>)?.id as string) ?? '';
   const description: string = (agent.system ?? agent.description ?? '') as string;
   const isArchived = !!agent.archived_at;
 
@@ -61,7 +67,7 @@
   }
 
   const tools = getToolNames();
-  const agentSchedules = data.schedules ?? [];
+  const agentSchedules = untrack(() => data.schedules ?? []);
   const expandedSchedules = $state<Record<string, boolean>>({});
 
   function toggleScheduleExpand(id: string) {
@@ -153,8 +159,13 @@
   {/if}
 
   {#if showDeleteConfirm}
-    <div class="confirm-backdrop" onclick={() => (showDeleteConfirm = false)} onkeydown={(e) => e.key === 'Escape' && (showDeleteConfirm = false)} role="presentation">
-      <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog" tabindex="-1">
+    <div
+      class="confirm-backdrop"
+      onclick={(e) => { if (e.target === e.currentTarget) showDeleteConfirm = false; }}
+      onkeydown={(e) => e.key === 'Escape' && (showDeleteConfirm = false)}
+      role="presentation"
+    >
+      <div class="confirm-modal" role="dialog" tabindex="-1">
         <p class="confirm-modal__text">
           Delete <strong>{agent.name}</strong>? This action cannot be undone.
         </p>

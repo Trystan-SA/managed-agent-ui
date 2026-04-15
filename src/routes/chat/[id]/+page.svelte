@@ -1,12 +1,13 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { untrack } from 'svelte';
   import Badge from '$components/Badge.svelte';
   import ChatView from '$components/ChatView.svelte';
   import type { ChatMessage as ChatMessageData } from '$lib/utils/chatEvents';
 
   const { data } = $props();
 
-  const sessionId = $derived($page.params.id);
+  const sessionId = $derived($page.params.id ?? null);
   const sessionObj = $derived(data.session as Record<string, unknown> | undefined);
   const sessionTitle = $derived((sessionObj?.title ?? sessionObj?.name ?? 'Untitled') as string);
   const agentId = $derived(sessionObj?.agent_id as string | undefined);
@@ -15,10 +16,10 @@
   const createdAt = $derived(sessionObj?.created_at as string | undefined);
   const initialStatus = $derived((sessionObj?.status as string | undefined) ?? 'idle');
 
-  const preloadedMessages = (data.messages as ChatMessageData[] | undefined) ?? [];
+  const preloadedMessages = untrack(() => (data.messages as ChatMessageData[] | undefined) ?? []);
 
   // Track live status from ChatView so the header badge stays in sync.
-  let status = $state(initialStatus);
+  let status = $state(untrack(() => initialStatus));
 
   function formatDate(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString('en-US', {

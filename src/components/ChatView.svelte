@@ -26,7 +26,7 @@
 
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import ChatMessage from './ChatMessage.svelte';
   import { apiFetch } from '$lib/utils/api';
   import {
@@ -60,9 +60,11 @@
   }: Props = $props();
 
   // --- Internal state ---
-  let currentSessionId = $state<string | null>(sessionId);
-  let status = $state<string>(preloadedStatus ?? 'idle');
-  const messages = $state<ChatMessageData[]>([...(preloadedMessages ?? [])]);
+  // Props are used as one-shot initial values; parent changes are re-synced via
+  // the $effect below, so untrack() here silences `state_referenced_locally`.
+  let currentSessionId = $state<string | null>(untrack(() => sessionId));
+  let status = $state<string>(untrack(() => preloadedStatus ?? 'idle'));
+  const messages = $state<ChatMessageData[]>(untrack(() => [...(preloadedMessages ?? [])]));
   let inputText = $state('');
   let evtSource: EventSource | null = null;
   let scrollContainer: HTMLDivElement | undefined = $state(undefined);
@@ -70,7 +72,7 @@
 
   // Track which session we've loaded history for, to avoid re-fetching when
   // the parent re-passes the same sessionId.
-  let loadedFor = $state<string | null>(preloadedMessages ? sessionId : null);
+  let loadedFor = $state<string | null>(untrack(() => (preloadedMessages ? sessionId : null)));
 
   const isRunning = $derived(status === 'running');
 

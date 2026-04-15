@@ -146,7 +146,7 @@
 
       <!-- Prompt Template -->
       <div class="schedule-card__field">
-        <label class="schedule-card__field-label">Prompt Template</label>
+        <div class="schedule-card__field-label">Prompt Template</div>
         <PromptTemplateEditor
           value={schedule.promptTemplate}
           onchange={(v) => update({ promptTemplate: v })}
@@ -155,7 +155,7 @@
 
       <!-- Schedule -->
       <div class="schedule-card__field">
-        <label class="schedule-card__field-label">Schedule</label>
+        <div class="schedule-card__field-label">Schedule</div>
         <SchedulePresetPicker
           preset={schedule.schedulePreset}
           hour={schedule.hour}
@@ -180,7 +180,7 @@
 
       <!-- Session Mode -->
       <div class="schedule-card__field">
-        <label class="schedule-card__field-label">Session Mode</label>
+        <div class="schedule-card__field-label">Session Mode</div>
         <div class="schedule-card__radios">
           <label class="schedule-card__radio">
             <input

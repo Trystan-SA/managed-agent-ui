@@ -117,6 +117,7 @@
 </script>
 
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import HelpBadge from '$components/HelpBadge.svelte';
 
@@ -142,24 +143,27 @@
     onsubmit
   }: Props = $props();
 
-  let name = $state(initial.name ?? '');
-  let description = $state(initial.description ?? '');
+  // `initial` seeds the form; edits are local state afterwards. untrack() silences
+  // the `state_referenced_locally` warning for one-shot prop captures.
+  const seed = untrack(() => initial);
+  let name = $state(seed.name ?? '');
+  let description = $state(seed.description ?? '');
   let networkingType = $state<'unrestricted' | 'limited'>(
-    initial.networkingType ?? 'unrestricted'
+    seed.networkingType ?? 'unrestricted'
   );
-  let allowedHosts = $state(initial.allowedHosts ?? '');
-  let allowMcpServers = $state(initial.allowMcpServers ?? false);
-  let allowPackageManagers = $state(initial.allowPackageManagers ?? false);
+  let allowedHosts = $state(seed.allowedHosts ?? '');
+  let allowMcpServers = $state(seed.allowMcpServers ?? false);
+  let allowPackageManagers = $state(seed.allowPackageManagers ?? false);
 
-  let pipPackages = $state(initial.pipPackages ?? '');
-  let npmPackages = $state(initial.npmPackages ?? '');
-  let aptPackages = $state(initial.aptPackages ?? '');
-  let cargoPackages = $state(initial.cargoPackages ?? '');
-  let goPackages = $state(initial.goPackages ?? '');
-  let gemPackages = $state(initial.gemPackages ?? '');
+  let pipPackages = $state(seed.pipPackages ?? '');
+  let npmPackages = $state(seed.npmPackages ?? '');
+  let aptPackages = $state(seed.aptPackages ?? '');
+  let cargoPackages = $state(seed.cargoPackages ?? '');
+  let goPackages = $state(seed.goPackages ?? '');
+  let gemPackages = $state(seed.gemPackages ?? '');
 
   const metadata = $state<MetadataEntry[]>(
-    initial.metadata ? initial.metadata.map((e) => ({ ...e })) : []
+    seed.metadata ? seed.metadata.map((e) => ({ ...e })) : []
   );
 
   function addMetadataRow() {
@@ -182,7 +186,7 @@
   // Only expand package rows that have initial content; everything else starts as a chip.
   const expandedPkgs = new SvelteSet<string>();
   for (const pm of packageManagers) {
-    const initialVal = initial[`${pm.key}Packages` as keyof EnvironmentFormValues];
+    const initialVal = seed[`${pm.key}Packages` as keyof EnvironmentFormValues];
     if (typeof initialVal === 'string' && initialVal.trim()) expandedPkgs.add(pm.key);
   }
 

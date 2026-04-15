@@ -1,12 +1,15 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { untrack } from 'svelte';
   import ScheduleCard from '$components/ScheduleCard.svelte';
   import AgentMcpServers, { type McpServerRow } from '$components/AgentMcpServers.svelte';
   import { showToast } from '$lib/stores/toast';
 
   const { data } = $props();
-  const agent: Record<string, unknown> = data.agent;
-  const environments = (data.environments ?? []) as Array<{ id: string; name?: string }>;
+  // Server-loaded data is a one-shot seed for the edit form; untrack() silences
+  // the `state_referenced_locally` warning.
+  const agent = untrack(() => data.agent as Record<string, unknown>);
+  const environments = untrack(() => (data.environments ?? []) as Array<{ id: string; name?: string }>);
 
   let name = $state((agent.name as string) ?? '');
   let model = $state(typeof agent.model === 'string' ? agent.model : (agent.model as Record<string, unknown>)?.id as string ?? 'claude-sonnet-4-6');
@@ -50,7 +53,7 @@
     };
   }
 
-  const existingSchedules = (data.schedules ?? []) as Array<{
+  type ExistingSchedule = {
     id: string;
     environmentId: string | null;
     promptTemplate: string;
@@ -59,7 +62,8 @@
     timezone: string;
     sessionMode: string;
     enabled: boolean;
-  }>;
+  };
+  const existingSchedules = untrack(() => (data.schedules ?? []) as ExistingSchedule[]);
 
   const schedules = $state<ScheduleFormData[]>(
     existingSchedules.map(s => {
@@ -140,7 +144,7 @@
   let mcpServers = $state<McpServerRow[]>(hydrateMcpServers(agent));
 
   // Versions — loaded into the right panel so a previous version can be restored.
-  const versions = (data.versions ?? []) as Array<Record<string, unknown>>;
+  const versions = untrack(() => (data.versions ?? []) as Array<Record<string, unknown>>);
 
   function loadVersion(ver: Record<string, unknown>) {
     name = (ver.name as string) ?? '';
