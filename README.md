@@ -2,6 +2,8 @@
 
 Deploy, monitor, and chat with autonomous Claude agents — end-to-end encrypted, fully Dockerized.
 
+![Dashboard chat view](static/repo_example_1.png)
+
 ## Features
 
 - **Agent Management** — Create, configure, and version managed agents, with a sticky version-history panel on the edit page that restores any prior config in place
