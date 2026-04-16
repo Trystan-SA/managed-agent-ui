@@ -3,250 +3,137 @@
   import { page } from '$app/stores';
   import { onMount } from 'svelte';
   import { apiFetch } from '$lib/utils/api';
+  import EnvironmentForm, {
+    valuesFromEnvironment,
+    type EnvironmentFormValues,
+    type EnvironmentPayload
+  } from '$components/EnvironmentForm.svelte';
 
   let loading = $state(true);
   let submitting = $state(false);
   let error = $state('');
-
-  let name = $state('');
-  let networkingType = $state<'unrestricted' | 'limited'>('unrestricted');
-  let allowedHosts = $state('');
-  let allowMcpServers = $state(false);
-  let allowPackageManagers = $state(false);
-  let pipPackages = $state('');
-  let npmPackages = $state('');
-  let aptPackages = $state('');
+  let initial = $state<Partial<EnvironmentFormValues>>({});
 
   const envId = $derived($page.params.id);
 
   onMount(async () => {
     try {
-      const env = await apiFetch<any>(`/api/environments/${envId}`);
-      name = env.name ?? '';
-      const net = env.config?.networking;
-      if (net?.type === 'limited') {
-        networkingType = 'limited';
-        allowedHosts = (net.allowed_hosts ?? []).join('\n');
-        allowMcpServers = net.allow_mcp_servers ?? false;
-        allowPackageManagers = net.allow_package_managers ?? false;
-      }
-      const pkgs = env.config?.packages;
-      if (pkgs) {
-        pipPackages = (pkgs.pip ?? []).join(', ');
-        npmPackages = (pkgs.npm ?? []).join(', ');
-        aptPackages = (pkgs.apt ?? []).join(', ');
-      }
-    } catch (e: any) {
-      error = e.message || 'Failed to load environment';
+      const env = await apiFetch<Record<string, unknown>>(`/api/environments/${envId}`);
+      initial = valuesFromEnvironment(env);
+    } catch (e: unknown) {
+      error = (e as Error).message || 'Failed to load environment';
     } finally {
       loading = false;
     }
   });
 
-  function parseList(value: string): string[] {
-    return value.split(',').map((s) => s.trim()).filter(Boolean);
-  }
-
-  function parseLines(value: string): string[] {
-    return value.split('\n').map((s) => s.trim()).filter(Boolean);
-  }
-
-  async function handleSubmit() {
-    if (!name.trim()) return;
+  async function handleSubmit(payload: EnvironmentPayload) {
     submitting = true;
     error = '';
-
-    const networking: Record<string, unknown> =
-      networkingType === 'unrestricted'
-        ? { type: 'unrestricted' }
-        : {
-            type: 'limited',
-            allowed_hosts: parseLines(allowedHosts),
-            allow_mcp_servers: allowMcpServers,
-            allow_package_managers: allowPackageManagers
-          };
-
-    const packages: Record<string, string[]> = {};
-    const pip = parseList(pipPackages);
-    const npm = parseList(npmPackages);
-    const apt = parseList(aptPackages);
-    if (pip.length) packages.pip = pip;
-    if (npm.length) packages.npm = npm;
-    if (apt.length) packages.apt = apt;
-
     try {
       await apiFetch(`/api/environments/${envId}`, {
         method: 'PUT',
-        body: JSON.stringify({
-          name: name.trim(),
-          config: {
-            type: 'cloud',
-            networking,
-            ...(Object.keys(packages).length > 0 && { packages })
-          }
-        })
+        body: JSON.stringify(payload)
       });
       await goto(`/environments/${envId}`);
-    } catch (e: any) {
-      error = e.message || 'Failed to update environment';
+    } catch (e: unknown) {
+      error = (e as Error).message || 'Failed to update environment';
     } finally {
       submitting = false;
     }
   }
 </script>
 
-<div class="page-header">
-  <div>
-    <h1 class="page-header__title">Edit Environment</h1>
-    <p class="page-header__subtitle">Update environment configuration</p>
+<svelte:head>
+  <title>Edit Environment | Managed Agents</title>
+</svelte:head>
+
+<div class="env-edit">
+  <div class="env-edit__header">
+    <a href="/environments/{envId}" class="back-link">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M10 12L6 8l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      Back to Environment
+    </a>
+    <h1 class="env-edit__title">Edit Environment</h1>
+    <p class="env-edit__subtitle">Update the environment configuration</p>
   </div>
+
+  {#if loading}
+    <div class="loading-card">
+      <span class="spinner"></span>
+      Loading environment...
+    </div>
+  {:else}
+    <EnvironmentForm
+      {initial}
+      {submitting}
+      {error}
+      submitLabel="Save Changes"
+      submittingLabel="Saving..."
+      submitIcon="check"
+      cancelHref="/environments/{envId}"
+      onsubmit={handleSubmit}
+    />
+  {/if}
 </div>
 
-{#if loading}
-  <p style="color: var(--text-muted);">Loading environment...</p>
-{:else}
-  <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
-    {#if error}
-      <div class="form-error" style="margin-bottom: var(--space-6);">{error}</div>
-    {/if}
+<style lang="scss">
+  .env-edit {
+    max-width: 680px;
+    padding-bottom: var(--space-12);
 
-    <div class="form-group">
-      <label class="form-label" for="env-name">
-        Name <span class="form-label__required">*</span>
-      </label>
-      <input
-        id="env-name"
-        class="form-input"
-        type="text"
-        bind:value={name}
-        placeholder="e.g. production-sandbox"
-        required
-      />
-    </div>
-
-    <div class="form-group">
-      <label class="form-label">Networking Mode</label>
-      <div class="radio-group">
-        <label class="radio-option">
-          <input type="radio" bind:group={networkingType} value="unrestricted" />
-          <span>Unrestricted</span>
-          <span class="form-hint">Full network access</span>
-        </label>
-        <label class="radio-option">
-          <input type="radio" bind:group={networkingType} value="limited" />
-          <span>Limited</span>
-          <span class="form-hint">Restrict to allowed hosts only</span>
-        </label>
-      </div>
-    </div>
-
-    {#if networkingType === 'limited'}
-      <div class="form-group">
-        <label class="form-label" for="allowed-hosts">Allowed Hosts</label>
-        <span class="form-hint">One host per line</span>
-        <textarea
-          id="allowed-hosts"
-          class="form-textarea"
-          bind:value={allowedHosts}
-          placeholder={"api.example.com\ncdn.example.com"}
-          rows="4"
-        ></textarea>
-      </div>
-
-      <div class="form-group">
-        <label class="toggle-row">
-          <input type="checkbox" bind:checked={allowMcpServers} />
-          <span class="form-label">Allow MCP Servers</span>
-        </label>
-      </div>
-
-      <div class="form-group">
-        <label class="toggle-row">
-          <input type="checkbox" bind:checked={allowPackageManagers} />
-          <span class="form-label">Allow Package Managers</span>
-        </label>
-      </div>
-    {/if}
-
-    <div class="form-group">
-      <label class="form-label">Packages</label>
-      <span class="form-hint">Comma-separated package names to pre-install</span>
-    </div>
-
-    <div class="form-group">
-      <label class="form-label" for="pip-pkgs">pip</label>
-      <input
-        id="pip-pkgs"
-        class="form-input"
-        type="text"
-        bind:value={pipPackages}
-        placeholder="numpy, pandas, requests"
-      />
-    </div>
-
-    <div class="form-group">
-      <label class="form-label" for="npm-pkgs">npm</label>
-      <input
-        id="npm-pkgs"
-        class="form-input"
-        type="text"
-        bind:value={npmPackages}
-        placeholder="lodash, axios"
-      />
-    </div>
-
-    <div class="form-group">
-      <label class="form-label" for="apt-pkgs">apt</label>
-      <input
-        id="apt-pkgs"
-        class="form-input"
-        type="text"
-        bind:value={aptPackages}
-        placeholder="curl, jq, git"
-      />
-    </div>
-
-    <div class="form-actions">
-      <a href="/environments/{envId}" class="btn btn--secondary">Cancel</a>
-      <button type="submit" class="btn" disabled={submitting || !name.trim()}>
-        {submitting ? 'Saving...' : 'Save Changes'}
-      </button>
-    </div>
-  </form>
-{/if}
-
-<style>
-  form {
-    max-width: 640px;
+    &__header { margin-bottom: var(--space-9); }
+    &__title {
+      font-size: var(--text-2xl);
+      font-weight: var(--weight-bold);
+      color: var(--text-primary);
+      line-height: var(--leading-tight);
+      margin-top: var(--space-4);
+    }
+    &__subtitle {
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      margin-top: var(--space-2);
+    }
   }
 
-  .radio-group {
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    transition: color var(--transition-fast);
+    &:hover { color: var(--accent-primary); }
+  }
+
+  .loading-card {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: var(--space-4);
-  }
-
-  .radio-option {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    cursor: pointer;
+    padding: var(--space-8);
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
     font-size: var(--text-sm);
-    color: var(--text-primary);
+    color: var(--text-muted);
   }
 
-  .radio-option .form-hint {
-    margin-left: var(--space-2);
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent-primary);
+    border-radius: var(--radius-full);
+    animation: spin 0.6s linear infinite;
   }
 
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    cursor: pointer;
-  }
-
-  .toggle-row .form-label {
-    margin: 0;
-  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>

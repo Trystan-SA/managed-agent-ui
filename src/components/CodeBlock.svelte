@@ -1,5 +1,5 @@
 <script lang="ts">
-  let { code, language }: { code: string; language?: string } = $props();
+  const { code, language }: { code: string; language?: string } = $props();
 
   let copied = $state(false);
 

@@ -2,13 +2,13 @@
   import { theme } from '$lib/stores/theme';
   import { goto } from '$app/navigation';
   import { invalidateAll } from '$app/navigation';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
 
-  let { data } = $props();
+  const { data } = $props();
 
   // Navigation
-  type Tab = 'api-keys' | 'appearance' | 'account' | 'users';
-  let activeTab = $state<Tab>(data.userRole === 'admin' ? 'api-keys' : 'appearance');
+  type Tab = 'api-keys' | 'appearance' | 'account' | 'users' | 'vaults';
+  let activeTab = $state<Tab>(untrack(() => data.userRole === 'admin' ? 'api-keys' : 'appearance'));
 
   // API key form
   let keyValue = $state('');
@@ -18,9 +18,9 @@
   let message = $state<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // --- Admin: User Management ---
-  let userList = $state<any[]>([]);
+  let userList = $state<Record<string, unknown>[]>([]);
   let loadingUsers = $state(true);
-  let inviteList = $state<any[]>([]);
+  let inviteList = $state<Record<string, unknown>[]>([]);
   let loadingInvites = $state(true);
   let inviteEmail = $state('');
   let inviteTempPassword = $state('');
@@ -31,11 +31,232 @@
 
   const isAdmin = $derived(data.userRole === 'admin');
 
+  // --- Admin: Vaults ---
+  interface Vault {
+    id: string;
+    display_name: string;
+    created_at: string;
+  }
+  interface Credential {
+    id: string;
+    auth: { type: string; mcp_server_url?: string };
+    created_at: string;
+  }
+  let vaultList = $state<Vault[]>([]);
+  let loadingVaults = $state(true);
+  let newVaultName = $state('');
+  let creatingVault = $state(false);
+  let expandedVaultId = $state<string | null>(null);
+  const vaultCredentials = $state<Record<string, Credential[]>>({});
+  let loadingCredentialsFor = $state<string | null>(null);
+  let credToken = $state('');
+  let credServerUrl = $state('');
+  let addingCredential = $state(false);
+
   onMount(async () => {
     if (isAdmin) {
-      await Promise.all([loadUsers(), loadInvites()]);
+      await Promise.all([loadUsers(), loadInvites(), loadVaults(), loadOAuthProviders()]);
     }
   });
+
+  // --- Admin: OAuth provider configs ---
+  interface OAuthProviderRow {
+    service: {
+      id: string;
+      displayName: string;
+      mcpServerUrl: string;
+      oauthConfig?: {
+        appRegistrationUrl?: string;
+        defaultScopes: string;
+        setupInstructions?: string[];
+      };
+    };
+    configured: boolean;
+    updatedAt: string | null;
+  }
+  let oauthProviders = $state<OAuthProviderRow[]>([]);
+  let loadingOAuth = $state(true);
+  // Per-service form state (keyed by serviceId)
+  const oauthForm = $state<Record<string, { clientId: string; clientSecret: string; scopes: string }>>({});
+  const oauthSaving = $state<Record<string, boolean>>({});
+  let oauthRedirectBase = $state('');
+
+  async function loadOAuthProviders() {
+    loadingOAuth = true;
+    try {
+      // Compute the redirect base for the admin to register at the provider
+      oauthRedirectBase = window.location.origin;
+      const res = await fetch('/api/admin/oauth-providers');
+      oauthProviders = res.ok ? await res.json() : [];
+      for (const row of oauthProviders) {
+        if (!oauthForm[row.service.id]) {
+          oauthForm[row.service.id] = { clientId: '', clientSecret: '', scopes: '' };
+        }
+      }
+    } catch { oauthProviders = []; }
+    finally { loadingOAuth = false; }
+  }
+
+  async function saveOAuthProvider(serviceId: string) {
+    const f = oauthForm[serviceId];
+    if (!f?.clientId.trim() || !f?.clientSecret.trim()) return;
+    oauthSaving[serviceId] = true;
+    message = null;
+    try {
+      const res = await fetch('/api/admin/oauth-providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          serviceId,
+          clientId: f.clientId.trim(),
+          clientSecret: f.clientSecret.trim(),
+          scopes: f.scopes.trim() || undefined
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? 'Failed to save OAuth config');
+      }
+      message = { type: 'success', text: 'OAuth provider saved.' };
+      oauthForm[serviceId] = { clientId: '', clientSecret: '', scopes: '' };
+      await loadOAuthProviders();
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
+    } finally {
+      oauthSaving[serviceId] = false;
+    }
+  }
+
+  async function deleteOAuthProvider(serviceId: string, name: string) {
+    if (!confirm(`Remove OAuth credentials for ${name}? Existing user connections keep working until their refresh tokens expire.`)) return;
+    try {
+      await fetch(`/api/admin/oauth-providers?serviceId=${encodeURIComponent(serviceId)}`, { method: 'DELETE' });
+      message = { type: 'success', text: 'OAuth provider removed.' };
+      await loadOAuthProviders();
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  function redirectUriFor(serviceId: string): string {
+    return `${oauthRedirectBase}/api/connections/oauth/${serviceId}/callback`;
+  }
+
+  let copiedRedirect = $state<string | null>(null);
+  async function copyRedirect(uri: string) {
+    try {
+      await navigator.clipboard.writeText(uri);
+      copiedRedirect = uri;
+      setTimeout(() => (copiedRedirect = null), 2000);
+    } catch { /* no-op */ }
+  }
+
+  async function loadVaults() {
+    loadingVaults = true;
+    try {
+      const res = await fetch('/api/vaults');
+      vaultList = res.ok ? await res.json() : [];
+    } catch { vaultList = []; }
+    finally { loadingVaults = false; }
+  }
+
+  async function createVault() {
+    if (!newVaultName.trim()) return;
+    creatingVault = true;
+    message = null;
+    try {
+      const res = await fetch('/api/vaults', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: newVaultName.trim() })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? 'Failed to create vault');
+      }
+      newVaultName = '';
+      message = { type: 'success', text: 'Vault created.' };
+      await loadVaults();
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
+    } finally {
+      creatingVault = false;
+    }
+  }
+
+  async function deleteVault(id: string, name: string) {
+    if (!confirm(`Delete vault "${name}"? Stored credentials will be lost.`)) return;
+    message = null;
+    try {
+      const res = await fetch(`/api/vaults/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete vault');
+      message = { type: 'success', text: 'Vault deleted.' };
+      if (expandedVaultId === id) expandedVaultId = null;
+      await loadVaults();
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  async function toggleVault(id: string) {
+    if (expandedVaultId === id) {
+      expandedVaultId = null;
+      return;
+    }
+    expandedVaultId = id;
+    credToken = '';
+    credServerUrl = '';
+    if (!vaultCredentials[id]) {
+      loadingCredentialsFor = id;
+      try {
+        const res = await fetch(`/api/vaults/${id}/credentials`);
+        vaultCredentials[id] = res.ok ? await res.json() : [];
+      } catch { vaultCredentials[id] = []; }
+      finally { loadingCredentialsFor = null; }
+    }
+  }
+
+  async function addCredential(vaultId: string) {
+    if (!credToken.trim() || !credServerUrl.trim()) return;
+    addingCredential = true;
+    message = null;
+    try {
+      const res = await fetch(`/api/vaults/${vaultId}/credentials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: credToken.trim(), mcp_server_url: credServerUrl.trim() })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? 'Failed to add credential');
+      }
+      credToken = '';
+      credServerUrl = '';
+      message = { type: 'success', text: 'Credential added.' };
+      // Force reload of this vault's credentials
+      delete vaultCredentials[vaultId];
+      const reload = await fetch(`/api/vaults/${vaultId}/credentials`);
+      vaultCredentials[vaultId] = reload.ok ? await reload.json() : [];
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
+    } finally {
+      addingCredential = false;
+    }
+  }
+
+  async function deleteCredential(vaultId: string, credentialId: string) {
+    if (!confirm('Delete this credential?')) return;
+    try {
+      const res = await fetch(`/api/vaults/${vaultId}/credentials/${credentialId}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error('Failed to delete credential');
+      const reload = await fetch(`/api/vaults/${vaultId}/credentials`);
+      vaultCredentials[vaultId] = reload.ok ? await reload.json() : [];
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
+    }
+  }
 
   async function loadUsers() {
     loadingUsers = true;
@@ -66,8 +287,8 @@
       }
       message = { type: 'success', text: `User ${email} deleted.` };
       await loadUsers();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -107,8 +328,8 @@
       inviteTempPassword = '';
       useTemporaryPassword = false;
       await loadInvites();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     } finally {
       inviting = false;
     }
@@ -118,8 +339,8 @@
     try {
       await fetch(`/api/admin/invites?id=${id}`, { method: 'DELETE' });
       await loadInvites();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     }
   }
 
@@ -128,7 +349,7 @@
       await navigator.clipboard.writeText(url);
       copiedUrl = true;
       setTimeout(() => (copiedUrl = false), 2000);
-    } catch {}
+    } catch { /* no-op */ }
   }
 
   function formatDate(iso: string | null): string {
@@ -158,8 +379,8 @@
       keyValue = '';
       showKey = false;
       await invalidateAll();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     } finally {
       savingKey = false;
     }
@@ -173,13 +394,9 @@
       if (!res.ok) throw new Error('Failed to remove API key');
       message = { type: 'success', text: 'API key removed.' };
       await invalidateAll();
-    } catch (e: any) {
-      message = { type: 'error', text: e.message };
+    } catch (e: unknown) {
+      message = { type: 'error', text: e instanceof Error ? e.message : String(e) };
     }
-  }
-
-  function toggleTheme() {
-    theme.update((t) => (t === 'dark' ? 'light' : 'dark'));
   }
 
   async function logout() {
@@ -239,8 +456,41 @@
             <span class="sp__nav-badge">Admin</span>
           </button>
         </li>
+        <li>
+          <button class="sp__nav-item" class:sp__nav-item--active={activeTab === 'vaults'} onclick={() => (activeTab = 'vaults')}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.25"/>
+              <circle cx="8" cy="8.5" r="1.5" stroke="currentColor" stroke-width="1.25"/>
+              <path d="M8 10v1.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+              <path d="M5 4V3a3 3 0 0 1 6 0v1" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+            </svg>
+            Vaults
+            <span class="sp__nav-badge">Admin</span>
+          </button>
+        </li>
       {/if}
     </ul>
+
+    <!-- Always-visible user identity + logout, below the tab list -->
+    <div class="sp__nav-footer">
+      <div class="sp__nav-user">
+        <span class="sp__nav-user__avatar" aria-hidden="true">
+          {data.userEmail?.[0]?.toUpperCase() ?? '?'}
+        </span>
+        <div class="sp__nav-user__info">
+          <span class="sp__nav-user__email" title={data.userEmail ?? ''}>
+            {data.userEmail ?? 'Unknown'}
+          </span>
+          <span class="sp__nav-user__role">{data.userRole ?? ''}</span>
+        </div>
+      </div>
+      <button class="sp__logout" type="button" onclick={logout}>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M6 14H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3M11 11l3-3-3-3M5.5 8H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Log out
+      </button>
+    </div>
   </nav>
 
   <!-- Content panel -->
@@ -380,17 +630,6 @@
             </span>
           </div>
         </div>
-
-        <div class="sub-section">
-          <h3 class="sub-section__title">Session</h3>
-          <p class="meta-text">Logging out will end your current session on this device.</p>
-          <button class="btn btn--danger" onclick={logout}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M6 14H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h3M11 11l3-3-3-3M5.5 8H14" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Log Out
-          </button>
-        </div>
       </div>
 
     <!-- ==================== User Management ==================== -->
@@ -423,21 +662,21 @@
             </div>
           {:else}
             <div class="um-user-list">
-              {#each userList as user}
+              {#each userList as user (user.id)}
                 <div class="um-user">
                   <div class="um-user__avatar">
-                    {user.email?.[0]?.toUpperCase() ?? '?'}
+                    {(user.email as string)?.[0]?.toUpperCase() ?? '?'}
                   </div>
                   <div class="um-user__info">
                     <span class="um-user__email">{user.email}</span>
-                    <span class="um-user__meta">Joined {formatDate(user.createdAt)}</span>
+                    <span class="um-user__meta">Joined {formatDate(user.createdAt as string)}</span>
                   </div>
                   <span class="role-badge" data-role={user.role}>{user.role}</span>
                   {#if user.role !== 'admin'}
                     <button
                       class="btn-icon btn-icon--danger"
                       title="Delete user"
-                      onclick={() => deleteUser(user.id, user.email)}
+                      onclick={() => deleteUser(user.id as string, user.email as string)}
                     >
                       <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                         <path d="M3 4.5h10M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4M9.5 7v4M4.5 4.5l.5 8.5a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l.5-8.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
@@ -522,21 +761,289 @@
               Invitations
             </div>
             <div class="um-invite-list">
-              {#each inviteList as inv}
+              {#each inviteList as inv (inv.id)}
                 <div class="um-invite-row">
                   <div class="um-invite-row__info">
                     <span class="um-invite-row__email">{inv.email}</span>
-                    <span class="um-invite-row__meta">{formatDate(inv.createdAt)}</span>
+                    <span class="um-invite-row__meta">{formatDate(inv.createdAt as string)}</span>
                   </div>
                   <span class="status-badge" data-status={inv.status}>{inv.status}</span>
                   {#if inv.status === 'pending'}
-                    <button class="btn-text btn-text--danger" onclick={() => revokeInvite(inv.id)}>Revoke</button>
+                    <button class="btn-text btn-text--danger" onclick={() => revokeInvite(inv.id as string)}>Revoke</button>
                   {/if}
                 </div>
               {/each}
             </div>
           </div>
         {/if}
+      </div>
+
+    <!-- ==================== Vaults (Admin) ==================== -->
+    {:else if activeTab === 'vaults' && isAdmin}
+      <div class="panel">
+        <div class="panel__header">
+          <h2 class="panel__title">Vaults</h2>
+          <p class="panel__desc">Stored credentials for MCP server authentication</p>
+        </div>
+
+        <!-- Existing vaults -->
+        <div class="um-section">
+          <div class="um-section__label">
+            <span class="um-count">{vaultList.length}</span>
+            Vaults
+          </div>
+
+          {#if loadingVaults}
+            <div class="loading-row"><span class="spinner"></span> Loading vaults...</div>
+          {:else if vaultList.length === 0}
+            <div class="empty-state">
+              <svg width="24" height="24" viewBox="0 0 16 16" fill="none" opacity="0.4">
+                <rect x="2" y="4" width="12" height="9" rx="1.5" stroke="currentColor" stroke-width="1.25"/>
+                <circle cx="8" cy="8.5" r="1.5" stroke="currentColor" stroke-width="1.25"/>
+                <path d="M5 4V3a3 3 0 0 1 6 0v1" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/>
+              </svg>
+              <span>No vaults configured</span>
+            </div>
+          {:else}
+            <div class="vault-list">
+              {#each vaultList as vault (vault.id)}
+                <div class="vault-row" class:vault-row--expanded={expandedVaultId === vault.id}>
+                  <button class="vault-row__head" onclick={() => toggleVault(vault.id)}>
+                    <div class="vault-row__info">
+                      <span class="vault-row__name">{vault.display_name}</span>
+                      <span class="vault-row__meta">{vault.id} &middot; {formatDate(vault.created_at)}</span>
+                    </div>
+                    <svg
+                      class="vault-row__chevron"
+                      class:vault-row__chevron--open={expandedVaultId === vault.id}
+                      width="14" height="14" viewBox="0 0 16 16" fill="none"
+                    >
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                  {#if expandedVaultId === vault.id}
+                    <div class="vault-row__body">
+                      {#if loadingCredentialsFor === vault.id}
+                        <div class="loading-row"><span class="spinner"></span> Loading credentials...</div>
+                      {:else}
+                        {@const creds = vaultCredentials[vault.id] ?? []}
+                        <div class="vault-creds">
+                          <div class="um-section__label">
+                            <span class="um-count">{creds.length}</span>
+                            Credentials
+                          </div>
+                          {#if creds.length > 0}
+                            {#each creds as cred (cred.id)}
+                              <div class="cred-row">
+                                <div class="cred-row__info">
+                                  <span class="cred-row__type">{cred.auth.type}</span>
+                                  <span class="cred-row__url">{cred.auth.mcp_server_url ?? '—'}</span>
+                                </div>
+                                <button
+                                  class="btn-icon btn-icon--danger"
+                                  title="Delete credential"
+                                  onclick={() => deleteCredential(vault.id, cred.id)}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                                    <path d="M3 4.5h10M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M6.5 7v4M9.5 7v4M4.5 4.5l.5 8.5a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1l.5-8.5" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"/>
+                                  </svg>
+                                </button>
+                              </div>
+                            {/each}
+                          {:else}
+                            <p class="meta-text">No credentials in this vault yet.</p>
+                          {/if}
+                        </div>
+
+                        <form
+                          class="form-stack"
+                          onsubmit={(e) => { e.preventDefault(); addCredential(vault.id); }}
+                        >
+                          <div class="field">
+                            <label class="field__label" for="cred-url-{vault.id}">MCP server URL</label>
+                            <input
+                              class="field-input"
+                              id="cred-url-{vault.id}"
+                              type="url"
+                              placeholder="https://example.com/mcp"
+                              required
+                              bind:value={credServerUrl}
+                            />
+                          </div>
+                          <div class="field">
+                            <label class="field__label" for="cred-token-{vault.id}">Bearer token</label>
+                            <input
+                              class="field-input"
+                              id="cred-token-{vault.id}"
+                              type="password"
+                              placeholder="Token never displayed again"
+                              autocomplete="off"
+                              required
+                              bind:value={credToken}
+                            />
+                          </div>
+                          <div class="vault-creds__actions">
+                            <button class="btn btn--primary btn--sm" type="submit" disabled={addingCredential}>
+                              {addingCredential ? 'Adding...' : 'Add credential'}
+                            </button>
+                            <button
+                              type="button"
+                              class="btn btn--danger btn--sm"
+                              onclick={() => deleteVault(vault.id, vault.display_name)}
+                            >
+                              Delete vault
+                            </button>
+                          </div>
+                        </form>
+                      {/if}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+        <!-- Create new vault -->
+        <div class="sub-section">
+          <h3 class="sub-section__title">Create vault</h3>
+          <form class="form-stack" onsubmit={(e) => { e.preventDefault(); createVault(); }}>
+            <div class="field">
+              <label class="field__label" for="vault-name">Display name</label>
+              <input
+                class="field-input"
+                id="vault-name"
+                type="text"
+                placeholder="e.g. Production credentials"
+                required
+                bind:value={newVaultName}
+              />
+            </div>
+            <button class="btn btn--primary" type="submit" disabled={creatingVault || !newVaultName.trim()}>
+              {creatingVault ? 'Creating...' : 'Create vault'}
+            </button>
+          </form>
+        </div>
+
+        <!-- ===== OAuth providers ===== -->
+        <div class="sub-section">
+          <h3 class="sub-section__title">OAuth providers</h3>
+          <p class="meta-text">
+            Configure OAuth client credentials so users can sign in with one click. The redirect URI shown for each provider must be registered at the provider's OAuth app settings.
+          </p>
+
+          {#if loadingOAuth}
+            <div class="loading-row"><span class="spinner"></span> Loading...</div>
+          {:else if oauthProviders.length === 0}
+            <p class="meta-text">No OAuth-capable services in the registry.</p>
+          {:else}
+            <div class="oauth-list">
+              {#each oauthProviders as p (p.service.id)}
+                {@const redirectUri = redirectUriFor(p.service.id)}
+                <details class="oauth-row" open={!p.configured}>
+                  <summary class="oauth-row__head">
+                    <span class="oauth-row__name">{p.service.displayName}</span>
+                    {#if p.configured}
+                      <span class="status-badge" data-status="accepted">Configured</span>
+                    {:else}
+                      <span class="status-badge" data-status="pending">Not configured</span>
+                    {/if}
+                  </summary>
+
+                  <div class="oauth-row__body">
+                    {#if p.service.oauthConfig?.setupInstructions}
+                      <ol class="oauth-row__steps">
+                        {#each p.service.oauthConfig.setupInstructions as step (step)}
+                          <li>{step}</li>
+                        {/each}
+                      </ol>
+                    {/if}
+
+                    {#if p.service.oauthConfig?.appRegistrationUrl}
+                      <a
+                        class="oauth-row__link"
+                        href={p.service.oauthConfig.appRegistrationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Register OAuth app at {p.service.displayName} ↗
+                      </a>
+                    {/if}
+
+                    <div class="field">
+                      <label class="field__label" for="oauth-redirect-{p.service.id}">Redirect URI (paste this into the provider)</label>
+                      <div class="field-row">
+                        <input
+                          class="field-input"
+                          id="oauth-redirect-{p.service.id}"
+                          type="text"
+                          readonly
+                          value={redirectUri}
+                        />
+                        <button type="button" class="btn btn--secondary btn--sm" onclick={() => copyRedirect(redirectUri)}>
+                          {copiedRedirect === redirectUri ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <form
+                      class="form-stack"
+                      onsubmit={(e) => { e.preventDefault(); saveOAuthProvider(p.service.id); }}
+                    >
+                      <div class="field">
+                        <label class="field__label" for="oauth-cid-{p.service.id}">Client ID</label>
+                        <input
+                          class="field-input"
+                          id="oauth-cid-{p.service.id}"
+                          type="text"
+                          required
+                          bind:value={oauthForm[p.service.id].clientId}
+                        />
+                      </div>
+                      <div class="field">
+                        <label class="field__label" for="oauth-secret-{p.service.id}">Client secret</label>
+                        <input
+                          class="field-input"
+                          id="oauth-secret-{p.service.id}"
+                          type="password"
+                          autocomplete="off"
+                          required
+                          bind:value={oauthForm[p.service.id].clientSecret}
+                        />
+                      </div>
+                      <div class="field">
+                        <label class="field__label" for="oauth-scopes-{p.service.id}">
+                          Scopes <span class="field__optional">defaults to: {p.service.oauthConfig?.defaultScopes ?? ''}</span>
+                        </label>
+                        <input
+                          class="field-input"
+                          id="oauth-scopes-{p.service.id}"
+                          type="text"
+                          placeholder={p.service.oauthConfig?.defaultScopes ?? ''}
+                          bind:value={oauthForm[p.service.id].scopes}
+                        />
+                      </div>
+                      <div class="oauth-row__actions">
+                        <button class="btn btn--primary btn--sm" type="submit" disabled={oauthSaving[p.service.id]}>
+                          {oauthSaving[p.service.id] ? 'Saving...' : (p.configured ? 'Replace credentials' : 'Save')}
+                        </button>
+                        {#if p.configured}
+                          <button
+                            type="button"
+                            class="btn btn--danger btn--sm"
+                            onclick={() => deleteOAuthProvider(p.service.id, p.service.displayName)}
+                          >
+                            Remove
+                          </button>
+                        {/if}
+                      </div>
+                    </form>
+                  </div>
+                </details>
+              {/each}
+            </div>
+          {/if}
+        </div>
       </div>
     {/if}
   </main>
@@ -555,8 +1062,10 @@
     position: sticky;
     top: calc(56px + var(--space-10));
     align-self: flex-start;
-    width: 200px;
+    width: 220px;
     flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .sp__nav-title {
@@ -621,6 +1130,94 @@
     border-radius: var(--radius-full);
     background: var(--accent-primary-muted);
     color: var(--accent-primary);
+  }
+
+  /* ——— Nav footer: identity + logout ——— */
+  .sp__nav-footer {
+    margin-top: var(--space-9);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .sp__nav-user {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: 0 var(--space-4);
+    min-width: 0;
+  }
+
+  .sp__nav-user__avatar {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    background: var(--accent-primary);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-bold);
+    line-height: 1;
+    user-select: none;
+  }
+
+  .sp__nav-user__info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .sp__nav-user__email {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sp__nav-user__role {
+    font-size: 10px;
+    font-weight: var(--weight-semibold);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .sp__logout {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    text-align: left;
+    transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+
+    &:hover {
+      color: var(--accent-danger);
+      border-color: var(--accent-danger);
+      background: var(--accent-danger-muted);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-danger);
+      outline-offset: 2px;
+    }
   }
 
   /* ======== Content Panel ======== */
@@ -1283,6 +1880,197 @@
 
     &:hover { background: var(--accent-primary-muted); }
     &--danger { color: var(--accent-danger); &:hover { background: var(--accent-danger-muted); } }
+  }
+
+  /* ======== Vaults ======== */
+  .vault-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .vault-row {
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    transition: border-color var(--transition-fast);
+
+    &:hover { border-color: var(--border-strong); }
+    &--expanded { border-color: var(--accent-primary); }
+
+    &__head {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+      width: 100%;
+      padding: var(--space-4) var(--space-5);
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      font-family: var(--font-sans);
+    }
+
+    &__info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    &__name {
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      color: var(--text-primary);
+    }
+
+    &__meta {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    &__chevron {
+      color: var(--text-muted);
+      transition: transform var(--transition-fast);
+      flex-shrink: 0;
+
+      &--open { transform: rotate(180deg); }
+    }
+
+    &__body {
+      padding: var(--space-5);
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface-0);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
+  }
+
+  .vault-creds {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+
+    &__actions {
+      display: flex;
+      gap: var(--space-3);
+      justify-content: space-between;
+    }
+  }
+
+  .cred-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+
+    &__info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    &__type {
+      font-size: var(--text-xs);
+      font-weight: var(--weight-semibold);
+      color: var(--accent-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    &__url {
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  /* ======== OAuth providers ======== */
+  .oauth-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .oauth-row {
+    background: var(--surface-1);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+
+    &__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-4) var(--space-5);
+      cursor: pointer;
+      list-style: none;
+      font-family: var(--font-sans);
+
+      &::-webkit-details-marker { display: none; }
+    }
+
+    &__name {
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
+      color: var(--text-primary);
+    }
+
+    &__body {
+      padding: var(--space-5);
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface-0);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    &__steps {
+      margin: 0;
+      padding-left: var(--space-6);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+    }
+
+    &__link {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      align-self: flex-start;
+      font-size: var(--text-sm);
+      color: var(--accent-primary);
+      text-decoration: none;
+      &:hover { text-decoration: underline; }
+    }
+
+    &__actions {
+      display: flex;
+      gap: var(--space-3);
+      justify-content: flex-end;
+    }
+  }
+
+  .field__optional {
+    font-weight: var(--weight-normal);
+    color: var(--text-muted);
+    margin-left: var(--space-2);
+    font-size: var(--text-xs);
   }
 
   /* ======== Responsive ======== */

@@ -1,10 +1,10 @@
 {
 	"name": "managed-agent-ui",
 	"private": true,
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"type": "module",
 	"scripts": {
-		"dev": "docker compose -f docker-compose.dev.yml up --build",
+		"dev": "docker compose --env-file .env -f docker/docker-compose.dev.yml up --build",
 		"dev:local": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
@@ -22,6 +22,7 @@
 		"@sveltejs/kit": "^2.57.0",
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@types/bcrypt": "^6.0.0",
+		"@types/node-cron": "^3.0.11",
 		"@types/uuid": "^10.0.0",
 		"drizzle-kit": "^0.31.10",
 		"eslint": "^10.2.0",
@@ -39,7 +40,9 @@
 		"@anthropic-ai/sdk": "^0.86.1",
 		"@sveltejs/adapter-node": "^5.5.4",
 		"bcrypt": "^6.0.0",
+		"cron-parser": "^5.5.0",
 		"drizzle-orm": "^0.45.2",
+		"node-cron": "^4.2.1",
 		"postgres": "^3.4.9",
 		"uuid": "^13.0.0"
 	}

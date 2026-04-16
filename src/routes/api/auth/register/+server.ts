@@ -48,8 +48,8 @@ export const POST: RequestHandler = async ({ request, cookies, getClientAddress 
     await createSession(cookies, user.id);
     markSetupComplete();
     return json({ success: true });
-  } catch (e: any) {
-    if (e.code === '23505') {
+  } catch (e: unknown) {
+    if (e instanceof Error && (e as Error & { code?: string }).code === '23505') {
       return json({ error: 'Email already registered' }, { status: 409 });
     }
     throw e;

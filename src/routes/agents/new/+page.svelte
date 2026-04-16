@@ -1,5 +1,25 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { untrack } from 'svelte';
+  import ScheduleCard from '$components/ScheduleCard.svelte';
+  import AgentMcpServers, { type McpServerRow } from '$components/AgentMcpServers.svelte';
+
+  const { data } = $props();
+  // Server-loaded data is a one-shot seed for the new-agent form.
+  const environments = untrack(() => (data?.environments ?? []) as Array<{ id: string; name?: string }>);
+
+  interface ScheduleFormData {
+    environmentId: string;
+    promptTemplate: string;
+    schedulePreset: string;
+    hour: number;
+    minute: number;
+    dayOfWeek: number;
+    dayOfMonth: number;
+    timezone: string;
+    sessionMode: string;
+    enabled: boolean;
+  }
 
   type ToolKeys = 'bash' | 'read' | 'write' | 'edit' | 'glob' | 'grep' | 'web_fetch' | 'web_search';
 
@@ -232,6 +252,31 @@ Make small, reviewable changes. Never refactor and add features in the same step
   });
   let error = $state('');
   let submitting = $state(false);
+  const schedules = $state<ScheduleFormData[]>([]);
+  let mcpServers = $state<McpServerRow[]>([]);
+
+  function addSchedule() {
+    schedules.push({
+      environmentId: environments[0]?.id ?? '',
+      promptTemplate: '',
+      schedulePreset: 'daily',
+      hour: 9,
+      minute: 0,
+      dayOfWeek: 1,
+      dayOfMonth: 1,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      sessionMode: 'new_session',
+      enabled: true
+    });
+  }
+
+  function updateSchedule(index: number, updated: ScheduleFormData) {
+    schedules[index] = updated;
+  }
+
+  function removeSchedule(index: number) {
+    schedules.splice(index, 1);
+  }
 
   function applyPreset(preset: Preset) {
     if (formDirty && selectedPreset !== preset.id) {
@@ -303,8 +348,8 @@ Make small, reviewable changes. Never refactor and add features in the same step
     { key: 'web_search', label: 'Search', icon: '\u2315', tip: 'Search the web for information' }
   ];
 
-  let allToolsEnabled = $derived(Object.values(toolStates).every(Boolean));
-  let formDirty = $derived(name.trim() !== '' || systemPrompt.trim() !== '');
+  const allToolsEnabled = $derived(Object.values(toolStates).every(Boolean));
+  const formDirty = $derived(name.trim() !== '' || systemPrompt.trim() !== '');
   let showConfirm = $state(false);
   let pendingPreset = $state<Preset | null>(null);
 
@@ -315,18 +360,32 @@ Make small, reviewable changes. Never refactor and add features in the same step
     }
   }
 
-  function buildTools(): any[] {
-    if (!agentToolsetEnabled) return [];
+  function buildTools(): Record<string, unknown>[] {
+    const tools: Record<string, unknown>[] = [];
 
-    const configs = Object.entries(toolStates)
-      .filter(([_, enabled]) => !enabled)
-      .map(([name]) => ({ name, enabled: false }));
-
-    const tool: any = { type: 'agent_toolset_20260401' };
-    if (configs.length > 0) {
-      tool.configs = configs;
+    if (agentToolsetEnabled) {
+      const configs = Object.entries(toolStates)
+        .filter(([_, enabled]) => !enabled)
+        .map(([name]) => ({ name, enabled: false }));
+      const tool: Record<string, unknown> = { type: 'agent_toolset_20260401' };
+      if (configs.length > 0) tool.configs = configs;
+      tools.push(tool);
     }
-    return [tool];
+
+    for (const srv of mcpServers) {
+      const trimmed = srv.name.trim();
+      if (srv.enabled && trimmed) {
+        tools.push({ type: 'mcp_toolset', mcp_server_name: trimmed });
+      }
+    }
+
+    return tools;
+  }
+
+  function buildMcpServersPayload() {
+    return mcpServers
+      .filter((s) => s.name.trim() !== '' && s.url.trim() !== '')
+      .map((s) => ({ name: s.name.trim(), type: 'url' as const, url: s.url.trim() }));
   }
 
   async function handleSubmit(e: SubmitEvent) {
@@ -335,12 +394,14 @@ Make small, reviewable changes. Never refactor and add features in the same step
     submitting = true;
 
     try {
-      const body = {
+      const mcpServersPayload = buildMcpServersPayload();
+      const body: Record<string, unknown> = {
         name,
         model,
-        description: systemPrompt || undefined,
+        system: systemPrompt || undefined,
         tools: buildTools()
       };
+      if (mcpServersPayload.length > 0) body.mcp_servers = mcpServersPayload;
 
       const res = await fetch('/api/agents', {
         method: 'POST',
@@ -354,9 +415,30 @@ Make small, reviewable changes. Never refactor and add features in the same step
       }
 
       const agent = await res.json();
+
+      // Create schedules for the new agent
+      for (const sched of schedules) {
+        await fetch('/api/scheduled-tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            agentId: agent.id,
+            environmentId: sched.environmentId,
+            promptTemplate: sched.promptTemplate,
+            schedulePreset: sched.schedulePreset,
+            hour: sched.hour,
+            minute: sched.minute,
+            dayOfWeek: sched.dayOfWeek,
+            dayOfMonth: sched.dayOfMonth,
+            timezone: sched.timezone,
+            sessionMode: sched.sessionMode
+          })
+        });
+      }
+
       await goto(`/agents/${agent.id}`);
-    } catch (err: any) {
-      error = err.message;
+    } catch (err: unknown) {
+      error = (err as Error).message;
     } finally {
       submitting = false;
     }
@@ -392,8 +474,13 @@ Make small, reviewable changes. Never refactor and add features in the same step
     {/if}
 
     {#if showConfirm}
-      <div class="confirm-backdrop" onclick={cancelApply} role="presentation">
-        <div class="confirm-modal" onclick={(e) => e.stopPropagation()} role="dialog">
+      <div
+        class="confirm-backdrop"
+        onclick={(e) => { if (e.target === e.currentTarget) cancelApply(); }}
+        onkeydown={(e) => e.key === 'Escape' && cancelApply()}
+        role="presentation"
+      >
+        <div class="confirm-modal" role="dialog" tabindex="-1">
           <p class="confirm-modal__text">
             Applying <strong>{pendingPreset?.label}</strong> will overwrite your current name and system prompt.
           </p>
@@ -438,7 +525,7 @@ Make small, reviewable changes. Never refactor and add features in the same step
         </div>
         <div class="form-section__card">
           <div class="model-grid">
-            {#each models as m}
+            {#each models as m (m.value)}
               <button
                 type="button"
                 class="model-card"
@@ -515,7 +602,7 @@ Make small, reviewable changes. Never refactor and add features in the same step
 
           {#if agentToolsetEnabled}
             <div class="tool-chips">
-              {#each toolDefs as tool}
+              {#each toolDefs as tool (tool.key)}
                 <button
                   type="button"
                   class="chip"
@@ -536,6 +623,50 @@ Make small, reviewable changes. Never refactor and add features in the same step
             </p>
           {/if}
         </div>
+      </section>
+
+      <!-- Section 5: MCP servers -->
+      <section class="form-section">
+        <div class="form-section__label">
+          <span class="form-section__number">5</span>
+          MCP Servers
+        </div>
+        <div class="form-section__card">
+          <AgentMcpServers
+            servers={mcpServers}
+            onchange={(next) => (mcpServers = next)}
+          />
+        </div>
+      </section>
+
+      <!-- Section 6: Schedules -->
+      <section class="form-section">
+        <div class="form-section__label">
+          <span class="form-section__number">6</span>
+          Schedules
+          <button
+            type="button"
+            class="schedules-add-btn"
+            onclick={addSchedule}
+          >
+            + Add Schedule
+          </button>
+        </div>
+        {#if schedules.length === 0}
+          <p class="schedules-empty">No schedules configured. Add a schedule to run this agent automatically.</p>
+        {:else}
+          <div class="schedules-list">
+            {#each schedules as sched, i (i)}
+              <ScheduleCard
+                schedule={sched}
+                index={i}
+                {environments}
+                onchange={(updated: ScheduleFormData) => updateSchedule(i, updated)}
+                onremove={() => removeSchedule(i)}
+              />
+            {/each}
+          </div>
+        {/if}
       </section>
 
       <!-- Actions -->
@@ -567,7 +698,7 @@ Make small, reviewable changes. Never refactor and add features in the same step
       </div>
       <p class="templates__desc">Pre-configured agents for common tasks. Click to populate the form.</p>
       <div class="templates__list">
-        {#each presets as preset}
+        {#each presets as preset (preset.id)}
           <button
             type="button"
             class="tmpl"
@@ -873,7 +1004,6 @@ Make small, reviewable changes. Never refactor and add features in the same step
     }
 
     &__input,
-    &__select,
     &__textarea {
       width: 100%;
       padding: var(--space-4) var(--space-5);
@@ -1249,6 +1379,37 @@ Make small, reviewable changes. Never refactor and add features in the same step
     font-size: var(--text-sm);
     color: var(--text-muted);
     padding: var(--space-4) 0;
+  }
+
+  /* ---- Schedules ---- */
+  .schedules-add-btn {
+    margin-left: auto;
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--accent-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: var(--accent-primary-muted);
+    }
+  }
+
+  .schedules-empty {
+    font-size: var(--text-sm);
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .schedules-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
   }
 
   /* ---- Footer ---- */

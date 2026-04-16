@@ -1,8 +1,8 @@
 <script lang="ts">
   import EmptyState from '$components/EmptyState.svelte';
-  import iconAgents from '$lib/assets/icons/empty-agents.svg';
+  import iconAgents from '$lib/assets/icons/empty-agents.svg?raw';
 
-  let { data } = $props();
+  const { data } = $props();
 
   function formatDate(dateStr: string): string {
     return new Date(dateStr).toLocaleDateString('en-US', {
@@ -12,8 +12,8 @@
     });
   }
 
-  function getModelId(agent: any): string {
-    return typeof agent.model === 'string' ? agent.model : agent.model?.id ?? '';
+  function getModelId(agent: Record<string, unknown>): string {
+    return typeof agent.model === 'string' ? agent.model : (agent.model as Record<string, unknown>)?.id as string ?? '';
   }
 
   function getModelLabel(m: string): string {
@@ -34,14 +34,15 @@
     return 'balanced';
   }
 
-  function getEnabledToolCount(agent: any): number {
-    if (!agent.tools?.length) return 0;
+  function getEnabledToolCount(agent: Record<string, unknown>): number {
+    const tools = agent.tools as Record<string, unknown>[] | undefined;
+    if (!tools?.length) return 0;
     const allTools = ['bash', 'read', 'write', 'edit', 'glob', 'grep', 'web_fetch', 'web_search'];
-    for (const tool of agent.tools) {
+    for (const tool of tools) {
       if (tool.type === 'agent_toolset_20260401') {
-        const configs = tool.configs ?? [];
+        const configs = (tool.configs ?? []) as Record<string, unknown>[];
         return allTools.filter(t => {
-          const cfg = configs.find((c: any) => c.name === t);
+          const cfg = configs.find((c: Record<string, unknown>) => c.name === t);
           return cfg ? cfg.enabled !== false : true;
         }).length;
       }
@@ -49,12 +50,12 @@
     return 0;
   }
 
-  function getDescription(agent: any): string {
-    return agent.description ?? agent.system ?? '';
+  function getDescription(agent: Record<string, unknown>): string {
+    return (agent.system ?? agent.description ?? '') as string;
   }
 
-  const activeAgents = $derived(data.agents.filter((a: any) => !a.archived_at));
-  const archivedAgents = $derived(data.agents.filter((a: any) => a.archived_at));
+  const activeAgents = $derived(data.agents.filter((a: Record<string, unknown>) => !a.archived_at));
+  const archivedAgents = $derived(data.agents.filter((a: Record<string, unknown>) => a.archived_at));
   let showArchived = $state(false);
 </script>
 
@@ -86,14 +87,13 @@
     />
   {:else}
     <div class="agent-grid">
-      {#each activeAgents as agent}
+      {#each activeAgents as agent (agent.id)}
         {@const mid = getModelId(agent)}
         {@const desc = getDescription(agent)}
         {@const toolCount = getEnabledToolCount(agent)}
         <a href="/agents/{agent.id}" class="agent-card">
           <div class="agent-card__top">
             <span class="agent-card__name">{agent.name}</span>
-            <span class="agent-card__version">v{agent.version ?? 1}</span>
           </div>
 
           {#if desc}
@@ -107,7 +107,7 @@
             {#if toolCount > 0}
               <span class="agent-card__tools">{toolCount} tools</span>
             {/if}
-            <span class="agent-card__date">{formatDate(agent.created_at)}</span>
+            <span class="agent-card__date">{formatDate(agent.created_at as string)}</span>
           </div>
         </a>
       {/each}
@@ -128,7 +128,7 @@
 
         {#if showArchived}
           <div class="agent-grid agent-grid--archived">
-            {#each archivedAgents as agent}
+            {#each archivedAgents as agent (agent.id)}
               {@const mid = getModelId(agent)}
               <a href="/agents/{agent.id}" class="agent-card agent-card--archived">
                 <div class="agent-card__top">
@@ -137,7 +137,7 @@
                 </div>
                 <div class="agent-card__footer">
                   <span class="agent-card__model" data-tier={getModelTier(mid)}>{getModelLabel(mid)}</span>
-                  <span class="agent-card__date">{formatDate(agent.created_at)}</span>
+                  <span class="agent-card__date">{formatDate(agent.created_at as string)}</span>
                 </div>
               </a>
             {/each}
@@ -256,17 +256,6 @@
       min-width: 0;
     }
 
-    &__version {
-      flex-shrink: 0;
-      font-size: 11px;
-      font-weight: var(--weight-semibold);
-      font-variant-numeric: tabular-nums;
-      color: var(--accent-info);
-      background: var(--accent-info-muted);
-      padding: 1px 7px;
-      border-radius: var(--radius-full);
-    }
-
     &__status-archived {
       flex-shrink: 0;
       font-size: 10px;
@@ -285,6 +274,7 @@
       line-height: var(--leading-normal);
       display: -webkit-box;
       -webkit-line-clamp: 2;
+      line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
       min-height: calc(var(--text-sm) * 2 * 1.5);

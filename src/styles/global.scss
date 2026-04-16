@@ -2,3 +2,14 @@
 @use 'reset';
 @use 'tokens';
 @use 'layout';
+
+// Component partials — previously missing from the global bundle, which
+// silently dropped all styling for chat messages, event cards, code blocks,
+// badges, forms, sidebars, and tables.
+@use 'components/badge';
+@use 'components/chat';
+@use 'components/code-block';
+@use 'components/event-card';
+@use 'components/form';
+@use 'components/sidebar';
+@use 'components/table';

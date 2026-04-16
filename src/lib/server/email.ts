@@ -50,7 +50,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
       html
     ].join('\r\n');
 
-    let socket: any;
+    let socket: import('node:net').Socket | import('node:tls').TLSSocket;
     let buffer = '';
     let step = 0;
 

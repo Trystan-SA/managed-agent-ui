@@ -1,11 +1,21 @@
 <script lang="ts">
   import Badge from './Badge.svelte';
 
-  let {
+  interface SessionEntry {
+    [key: string]: unknown;
+    id: string;
+    title?: string;
+    name?: string;
+    status?: string;
+    created_at?: string;
+    createdAt?: string;
+  }
+
+  const {
     sessions,
     currentSessionId
   }: {
-    sessions: any[];
+    sessions: SessionEntry[];
     currentSessionId?: string;
   } = $props();
 
@@ -34,12 +44,12 @@
         <line x1="12" y1="5" x2="12" y2="19" />
         <line x1="5" y1="12" x2="19" y2="12" />
       </svg>
-      New Session
+      New Chat
     </a>
   </div>
 
   <div class="sidebar__items">
-    {#each sessions as session}
+    {#each sessions as session (session.id)}
       {@const isActive = session.id === currentSessionId}
       <a
         href="/chat/{session.id}"

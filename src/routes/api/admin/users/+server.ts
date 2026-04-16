@@ -1,15 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
-import { users, apiKeys, apiKeyShares, authSessions, userPreferences, agentBookmarks, envBookmarks, sessionBookmarks } from '$lib/server/db/schema';
+import { users } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
-
-function requireAdmin(locals: App.Locals) {
-  if (!locals.userId || locals.userRole !== 'admin') {
-    return json({ error: 'Admin access required' }, { status: 403 });
-  }
-  return null;
-}
+import { requireAdmin } from '$lib/server/auth';
 
 // List all users
 export const GET: RequestHandler = async ({ locals }) => {
