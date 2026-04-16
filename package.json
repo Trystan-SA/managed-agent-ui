@@ -1,7 +1,7 @@
 {
 	"name": "managed-agent-ui",
 	"private": true,
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"type": "module",
 	"scripts": {
 		"dev": "docker compose --env-file .env -f docker/docker-compose.dev.yml up --build",
