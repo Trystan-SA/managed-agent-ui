@@ -20,12 +20,125 @@ So I decided to create my own open-source self-hosted UI wrapper. More feature a
 - [Node.js](https://nodejs.org/) 22+ (for development)
 - An [Anthropic API key](https://console.anthropic.com/) with Managed Agents access
 
-## Quick Start (Docker)
+## Docker Hub
+
+```
+trystansarrade/managed-agent-ui:latest
+```
+
+> **Pinning a version:** Replace `latest` with a specific tag (e.g. `trystansarrade/managed-agent-ui:0.1.0`) to lock to a release.
+
+### Environment Variables
+
+| Variable         | Required | Default       | Description                                                    |
+| ---------------- | -------- | ------------- | -------------------------------------------------------------- |
+| `DATABASE_URL`   | Yes      | —             | PostgreSQL connection string                                   |
+| `ENCRYPTION_KEY` | Yes      | —             | 64-char hex string for AES-256-GCM (`openssl rand -hex 32`)    |
+| `SESSION_SECRET` | Yes      | —             | Random hex string for session signing (`openssl rand -hex 32`) |
+| `SETUP_PASSWORD` | Yes\*    | —             | One-time password for initial admin account creation           |
+| `NODE_ENV`       | No       | `development` | Set to `production` for Docker deployments                     |
+| `PORT`           | No       | `3000`        | Port the app listens on inside the container                   |
+
+\*`SETUP_PASSWORD` is only needed until the admin account is created. It can be removed afterwards.
+
+### Option A — Docker CLI
+
+Start a PostgreSQL container and the app manually:
+
+```sh
+# 1. Create a network
+docker network create managed-agents
+
+# 2. Start PostgreSQL
+docker run -d \
+  --name managed-agents-db \
+  --network managed-agents \
+  -e POSTGRES_USER=managed_agents \
+  -e POSTGRES_PASSWORD=change-me-to-a-strong-password \
+  -e POSTGRES_DB=managed_agents \
+  -v pgdata:/var/lib/postgresql/data \
+  postgres:16-alpine
+
+# 3. Start Managed Agent UI
+docker run -d \
+  --name managed-agents-app \
+  --network managed-agents \
+  -p 3000:3000 \
+  -e DATABASE_URL=postgres://managed_agents:change-me-to-a-strong-password@managed-agents-db:5432/managed_agents \
+  -e ENCRYPTION_KEY=$(openssl rand -hex 32) \
+  -e SESSION_SECRET=$(openssl rand -hex 32) \
+  -e SETUP_PASSWORD=change-me \
+  -e NODE_ENV=production \
+  trystansarrade/managed-agent-ui:latest
+```
+
+### Option B — Docker Compose
+
+Create a `docker-compose.yml`:
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: managed_agents
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: managed_agents
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U managed_agents"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: trystansarrade/managed-agent-ui:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://managed_agents:${POSTGRES_PASSWORD}@postgres:5432/managed_agents
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      SESSION_SECRET: ${SESSION_SECRET}
+      SETUP_PASSWORD: ${SETUP_PASSWORD}
+      NODE_ENV: production
+
+volumes:
+  pgdata:
+```
+
+Create a `.env` file next to it:
+
+```sh
+POSTGRES_PASSWORD=change-me-to-a-strong-password
+ENCRYPTION_KEY=<run: openssl rand -hex 32>
+SESSION_SECRET=<run: openssl rand -hex 32>
+SETUP_PASSWORD=change-me
+```
+
+Then start everything:
+
+```sh
+docker compose up -d
+```
+
+### First Launch
+
+Open `http://localhost:3000` (or your VM address) - you'll be redirected to the initial setup page. Enter your setup password and create your admin account. After the admin account is created, the setup page is permanently disabled.
+
+## Quick Start (Build from Source)
+
+If you want to build the image yourself or contribute to the project:
 
 1. Clone the repository and create your config:
 
 ```sh
-git clone <repo-url> managed-agents
+git clone https://github.com/Trystan-SA/managed-agent-ui.git managed-agents
 cd managed-agents
 cp .env.example .env
 ```
@@ -43,26 +156,12 @@ SETUP_PASSWORD=your-one-time-setup-password
 3. Start everything:
 
 ```sh
-docker compose up -d
+docker compose -f docker/docker-compose.yml up -d --build
 ```
 
 4. Open `http://localhost:3000` — you'll be redirected to the initial setup page. Enter your setup password and create your admin account.
 
 That's it. After the admin account is created, the setup page is permanently disabled.
-
-## Environment Variables
-
-| Variable            | Required | Default          | Description                                           |
-| ------------------- | -------- | ---------------- | ----------------------------------------------------- |
-| `POSTGRES_PASSWORD` | Yes      | —                | PostgreSQL password                                   |
-| `POSTGRES_USER`     | No       | `managed_agents` | PostgreSQL user                                       |
-| `POSTGRES_DB`       | No       | `managed_agents` | PostgreSQL database name                              |
-| `ENCRYPTION_KEY`    | Yes      | —                | 64-char hex string for AES-256-GCM API key encryption |
-| `SESSION_SECRET`    | Yes      | —                | Random string for session signing                     |
-| `SETUP_PASSWORD`    | Yes\*    | —                | One-time password for initial admin account creation  |
-| `PORT`              | No       | `3000`           | Port to expose the app on                             |
-
-\*`SETUP_PASSWORD` is only needed until the admin account is created. It can be removed from `.env` afterwards.
 
 ## Development
 
