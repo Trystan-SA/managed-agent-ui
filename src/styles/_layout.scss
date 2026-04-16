@@ -31,6 +31,28 @@
     flex-shrink: 0;
   }
 
+  &__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-4);
+    color: var(--text-primary);
+    font-size: var(--text-md);
+    font-weight: var(--weight-semibold);
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-3);
+    transition: opacity var(--transition-fast);
+
+    &:hover {
+      opacity: 0.85;
+    }
+  }
+
+  &__logo-icon {
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+  }
+
   &__links {
     display: flex;
     align-items: center;

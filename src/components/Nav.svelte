@@ -15,7 +15,10 @@
 
 <nav class="nav">
   <div class="nav__logo">
-    <a href="/dashboard" class="nav__link">Managed Agents</a>
+    <a href="/dashboard" class="nav__brand">
+      <img class="nav__logo-icon" src="/logo-mark.svg" alt="Managed Agents logo" width="28" height="28" />
+      <span>Managed Agents</span>
+    </a>
   </div>
 
   <div class="nav__links">
