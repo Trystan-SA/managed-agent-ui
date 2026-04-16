@@ -1,6 +1,9 @@
-# ManagedAgentUI — Self-Hosted Control Panel for Anthropic Managed Agents
+# Self-Hosted Control Panel for Anthropic Managed Agents
 
-Deploy, monitor, and chat with autonomous Claude agents — end-to-end encrypted, fully Dockerized.
+Deploy, monitor, schedule and chat with autonomous Claude agents, fully Dockerized.
+
+After the announcement by Anthropic of its Managed Agents API (8 April) I noticed their UI was difficult to use and lacking features like scheduling or automations.
+So I decided to create my own open-source self-hosted UI wrapper. More feature are comming (better UX, MCP integration). I made this beta release available to start getting reviews and idea about this tool. Contributions are welcome !
 
 ![Dashboard chat view](static/repo_example_1.png)
 
